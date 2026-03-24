@@ -1,0 +1,11 @@
+{
+  "name": "masterflow",
+  "description": "Project initialization, skill management, and documentation workflow for Claude Code. Analyzes tech stacks, audits skills, and configures projects automatically.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Toni"
+  },
+  "repository": "https://github.com/tonipse/masterflow",
+  "license": "MIT",
+  "keywords": ["claude-code", "agent-skills", "project-setup", "skill-management", "workflow"]
+}
