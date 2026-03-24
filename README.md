@@ -9,10 +9,10 @@ Projekt-Initialisierung, Skill-Management und Dokumentations-Workflow für Claud
 
 ## Installation
 
-### Option 1: Plugin-Marketplace
+### Option 1: Plugin Install (via Git-URL)
 
 ```
-/plugin install masterflow
+/plugin install https://github.com/tonipse/masterflow
 ```
 
 ### Option 2: Git Clone
@@ -20,6 +20,7 @@ Projekt-Initialisierung, Skill-Management und Dokumentations-Workflow für Claud
 ```bash
 git clone https://github.com/tonipse/masterflow.git
 cp -r masterflow/skills/* .claude/skills/
+cp -r masterflow/references .claude/skills/masterflow-references/
 ```
 
 ### Option 3: Manuell
