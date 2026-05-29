@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "SessionEnd": [
+      {
+        "matcher": "*",
+        "hooks": [
+          { "type": "command", "command": "echo '[mastermind] Session beendet – gab es etwas Lernenswertes? /mastermind:capture' >&2" }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "mastermind-memory": {
+      "command": "basic-memory",
+      "args": ["mcp"],
+      "env": { "BASIC_MEMORY_MCP_PROJECT": "mastermind" }
+    }
+  }
+}

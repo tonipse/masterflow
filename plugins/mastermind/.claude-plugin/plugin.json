@@ -1,0 +1,10 @@
+{
+  "name": "mastermind",
+  "description": "Central cross-project engineering brain: recall prior knowledge before coding and capture lessons after, stored as a local Obsidian vault via basic-memory. Use when starting a coding task or after solving something non-obvious.",
+  "version": "0.1.0",
+  "author": { "name": "Toni" },
+  "homepage": "https://github.com/tonipse/masterflow",
+  "repository": "https://github.com/tonipse/masterflow",
+  "license": "MIT",
+  "keywords": ["knowledge-management", "obsidian", "basic-memory", "memory", "second-brain", "claude-code"]
+}

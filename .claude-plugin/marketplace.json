@@ -16,6 +16,15 @@
       "license": "MIT",
       "repository": "https://github.com/tonipse/masterflow",
       "keywords": ["claude-code", "agent-skills", "project-setup", "skill-management", "workflow"]
+    },
+    {
+      "name": "mastermind",
+      "source": "./plugins/mastermind",
+      "description": "Central cross-project engineering brain: recall before coding, capture after, stored as a local Obsidian vault via basic-memory.",
+      "version": "0.1.0",
+      "license": "MIT",
+      "repository": "https://github.com/tonipse/masterflow",
+      "keywords": ["knowledge-management", "obsidian", "basic-memory", "memory", "second-brain"]
     }
   ]
 }
