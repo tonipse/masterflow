@@ -2,7 +2,7 @@
 description: Health-check the Mastermind brain — find orphans, likely duplicates, and stale notes.
 ---
 
-Audit the Mastermind vault via `mastermind-memory` (`list_directory`, `recent_activity`, `search`):
+Audit the Mastermind vault via `mastermind-memory` (`list_directory`, `recent_activity`, `search_notes`):
 - orphan notes (no incoming/outgoing links),
 - likely duplicate/overlapping notes,
 - stale notes (long untouched) or `status: draft`.

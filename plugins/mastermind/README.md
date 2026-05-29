@@ -5,6 +5,7 @@ Central cross-project engineering brain for Claude Code. Bundles a local `basic-
 ## Prerequisites
 - `uv` installed; `uv tool install basic-memory`.
 - Project registered: `basic-memory project add mastermind ~/Desktop/Mastermind`.
+- The MCP is locked to the `mastermind` project via `BASIC_MEMORY_MCP_PROJECT` regardless of basic-memory's `default_project`, so every project writes to the one central vault.
 
 ## Commands
 `/mastermind:recall <topic>` · `:capture` · `:gotcha` · `:decision` · `:project <name>` · `:index`
