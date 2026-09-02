@@ -267,11 +267,11 @@ claude plugin validate plugins/mastermind --strict && claude plugin validate plu
 
 ### Task 9: Deployment
 
-- [ ] **Step 1:** `git checkout main && git merge --ff-only feat/mastermind-v2 && git push origin main`
-- [ ] **Step 2:** `claude plugin marketplace update masterflow && claude plugin update mastermind@masterflow`
-- [ ] **Step 3:** `ls ~/.claude/plugins/cache/masterflow/mastermind/` zeigt `0.2.0`; `claude plugin details mastermind@masterflow` zeigt Hooks (2) und Skills.
+- [x] **Step 1:** `git checkout main && git merge --ff-only feat/mastermind-v2 && git push origin main`
+- [x] **Step 2:** `claude plugin marketplace update masterflow && claude plugin update mastermind@masterflow`
+- [x] **Step 3:** `ls ~/.claude/plugins/cache/masterflow/mastermind/` zeigt `0.2.0`; `claude plugin details mastermind@masterflow` zeigt Hooks (2) und Skills.
 
 ### Task 10: Memory und Abschlussbericht
 
-- [ ] **Step 1:** Memory-Dateien im masterflow-Memory-Verzeichnis: User-Präferenzen (autonomes Capture, Wrap-Nutzung), Projektstand v2, Vault-Pfad.
-- [ ] **Step 2:** Abschlussbericht: was geändert wurde, was der User tun muss (Claude Code neu starten, Symlink entfernen), offene Punkte.
+- [x] **Step 1:** Memory-Dateien im masterflow-Memory-Verzeichnis: User-Präferenzen (autonomes Capture, Wrap-Nutzung), Projektstand v2, Vault-Pfad.
+- [x] **Step 2:** Abschlussbericht: was geändert wurde, was der User tun muss (Claude Code neu starten, Symlink entfernen), offene Punkte.
