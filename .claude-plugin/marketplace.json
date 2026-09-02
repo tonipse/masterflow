@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "Project initialization, skill management, and documentation workflow for Claude Code.",
-    "version": "1.1.0"
+    "version": "1.2.0"
   },
   "plugins": [
     {
@@ -20,8 +20,8 @@
     {
       "name": "mastermind",
       "source": "./plugins/mastermind",
-      "description": "Central cross-project engineering brain: session-start context, autonomous capture, session wrap-up, stored as a local Obsidian vault via basic-memory.",
-      "version": "0.2.0",
+      "description": "Central cross-project engineering brain: session-start context, per-prompt hints, autonomous capture, vault lint, inbox, session wrap-up, stored as a local Obsidian vault via basic-memory.",
+      "version": "0.3.0",
       "license": "MIT",
       "repository": "https://github.com/tonipse/masterflow",
       "keywords": ["knowledge-management", "obsidian", "basic-memory", "memory", "second-brain", "hooks"]
