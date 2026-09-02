@@ -64,7 +64,11 @@ charter) that every session loads. Access goes through the bundled `basic-memory
   (`ollama pull qwen3-embedding:8b`, 4.7 GB, 4096 dimensions, query instruction prefix), and the local
   fastembed reranker `jinaai/jina-reranker-v2-base-multilingual` (cache `~/.basic-memory/fastembed_cache`).
   RAM ≈ 5–6 GB while the model is loaded; Ollama unloads it after 5 minutes idle, the first query afterwards
-  takes 2–4 s. The session-start hook warns when Ollama is not reachable.
+  takes 2–4 s. The session-start hook warns when Ollama is not reachable. The switch re-embeds every note
+  through a temporary `basic-memory mcp` (about 15 s per note with the 8B model on an M5, i.e. roughly an hour
+  for 180 notes; the script shows the progress and only stops when every entity has vector chunks). The
+  0.23.2 migration recreates the vector tables and its start-sync also rebuilds the full-text rows, so the
+  upgrade doubles as an index repair.
 
 ## Maintenance
 
