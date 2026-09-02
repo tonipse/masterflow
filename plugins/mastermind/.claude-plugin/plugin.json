@@ -1,7 +1,7 @@
 {
   "name": "mastermind",
-  "description": "Central cross-project engineering brain (local Obsidian vault via basic-memory): session-start hook injects the project's hub, similar projects and stack notes; Claude recalls before coding and captures verified learnings autonomously; /mastermind:wrap closes a session into the vault.",
-  "version": "0.2.0",
+  "description": "Central cross-project engineering brain (local Obsidian vault via basic-memory): session-start hook injects the project's hub, similar projects and stack notes; per-prompt hints from the full-text index; Claude recalls before coding and captures verified learnings autonomously; vault lint, inbox for unverified candidates, /mastermind:wrap closes a session into the vault.",
+  "version": "0.3.0",
   "author": { "name": "Toni" },
   "homepage": "https://github.com/tonipse/masterflow",
   "repository": "https://github.com/tonipse/masterflow",

@@ -29,6 +29,11 @@ CLIP_PROMPT = 220
 CLIP_LINE = 160
 ERROR_RE = re.compile(r"(error|exception|traceback|failed|FAIL\b|ENOENT|EACCES|denied|fatal:)", re.I)
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
+SECRET_RE = re.compile(r"(sk-[A-Za-z0-9]{8,}|ghp_[A-Za-z0-9]{10,}|xox[abp]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{12,}"
+                       r"|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)")
+DIGEST_MAX_CHARS = 40000
+DIGEST_CLIP_USER = 400
+DIGEST_CLIP_CLAUDE = 600
 
 
 def run(cmd, cwd=None, keep_indent=False):
@@ -43,6 +48,7 @@ def run(cmd, cwd=None, keep_indent=False):
 
 def clip(s, n):
     s = " ".join(str(s).split())
+    s = SECRET_RE.sub("[SECRET ENTFERNT]", s)
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
@@ -286,11 +292,87 @@ def section_timeline(transcript):
     return out
 
 
+def section_digest(transcript, max_chars=DIGEST_MAX_CHARS):
+    """Compact session digest (ported from session-index.py): user prompts, last Claude text per turn,
+    error lines, edited files. Sidechains and meta lines are skipped, secrets masked, head+tail when too long."""
+    out = ["## Session-Digest (Transkript, kompakt)"]
+    if not transcript:
+        out.append("- nicht gefunden (Session-ID oder Transkript unbekannt)")
+        return out
+    lines, files = [], []
+    prompts = tools = errors = 0
+    start = end = None
+    try:
+        with open(transcript, encoding="utf-8", errors="replace") as fh:
+            for raw in fh:
+                try:
+                    o = json.loads(raw)
+                except Exception:
+                    continue
+                if o.get("isSidechain"):
+                    continue
+                ts = o.get("timestamp")
+                if ts:
+                    start = start or ts
+                    end = ts
+                msg = o.get("message") if isinstance(o.get("message"), dict) else None
+                if not msg:
+                    continue
+                t, content = o.get("type"), msg.get("content")
+                hhmm = local_hhmm(ts) if ts else "?"
+                if t == "user" and not o.get("isMeta"):
+                    blocks = [content] if isinstance(content, str) else (content or [])
+                    for b in blocks:
+                        if isinstance(b, str) or (isinstance(b, dict) and b.get("type") == "text"):
+                            txt = (b if isinstance(b, str) else str(b.get("text", ""))).strip()
+                            if txt and not txt.startswith(("<", "[Request interrupted")):
+                                prompts += 1
+                                lines.append(f"\n### {hhmm} USER: {clip(txt, DIGEST_CLIP_USER)}")
+                        elif isinstance(b, dict) and b.get("type") == "tool_result":
+                            txt = block_text(b.get("content"))
+                            if b.get("is_error") or ERROR_RE.search(txt[:3000]):
+                                for l in txt.splitlines():
+                                    if ERROR_RE.search(l):
+                                        errors += 1
+                                        lines.append(f"  ! {clip(l, 200)}")
+                                        break
+                elif t == "assistant" and isinstance(content, list):
+                    last_text = ""
+                    for b in content:
+                        if not isinstance(b, dict):
+                            continue
+                        if b.get("type") == "tool_use":
+                            tools += 1
+                            inp = b.get("input") or {}
+                            if b.get("name") in EDIT_TOOLS and isinstance(inp, dict):
+                                fp = inp.get("file_path") or inp.get("notebook_path")
+                                if fp and fp not in files:
+                                    files.append(fp)
+                        elif b.get("type") == "text":
+                            last_text = str(b.get("text", ""))
+                    if last_text.strip():
+                        lines.append(f"  {hhmm} CLAUDE: {clip(last_text, DIGEST_CLIP_CLAUDE)}")
+    except Exception as e:
+        lines.append(f"(Transkript nur teilweise lesbar: {e})")
+    out.append(f"- Datei: `{transcript}` · Zeitraum: {local_hhmm(start) if start else '?'}–{local_hhmm(end) if end else '?'}"
+               f" · Prompts {prompts} · Tool-Aufrufe {tools} · Fehlerzeilen {errors} · editierte Dateien {len(files)}")
+    if files:
+        out.append("- Editierte Dateien: " + ", ".join(files[:40]) + (" …" if len(files) > 40 else ""))
+    body = "\n".join(lines)
+    if len(body) > max_chars:
+        keep = max_chars // 2
+        body = body[:keep] + f"\n\n… [{len(body) - max_chars} Zeichen ausgelassen] …\n\n" + body[-keep:]
+    out.append(body)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--session", default="")
     ap.add_argument("--since", default="none")
     ap.add_argument("--cwd", default=os.getcwd())
+    ap.add_argument("--digest", action="store_true", help="append the compact session digest (for /mastermind:wrap last)")
+    ap.add_argument("--max-chars", type=int, default=DIGEST_MAX_CHARS, help="digest size limit (head + tail beyond)")
     a = ap.parse_args()
     since = parse_since(a.since)
     cwd = str(Path(a.cwd).expanduser())
@@ -299,7 +381,10 @@ def main():
     git_lines, root = section_git(cwd, since)
     print("\n".join(git_lines))
     print("\n".join(section_memory(cwd, root, since)))
-    print("\n".join(section_timeline(find_transcript(a.session, cwd, root))))
+    transcript = find_transcript(a.session, cwd, root)
+    print("\n".join(section_timeline(transcript)))
+    if a.digest:
+        print("\n".join(section_digest(transcript, a.max_chars)))
 
 
 if __name__ == "__main__":
