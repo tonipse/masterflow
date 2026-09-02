@@ -4,8 +4,8 @@ description: Health-check the Mastermind brain — index completeness, orphans, 
 
 Audit the Mastermind vault. Read-only unless the user confirms fixes afterwards.
 
-1. **Index**: run `basic-memory status --project mastermind` and compare the number of `.md` files in the
-   vault (`find "${MASTERMIND_VAULT:-$HOME/Mastermind}" -name '*.md' -not -path '*/.obsidian/*' | wc -l`)
+1. **Index**: run `basic-memory status --project mastermind` and compare the number of indexable files in the
+   vault (`find "${MASTERMIND_VAULT:-$HOME/Mastermind}" \( -name '*.md' -o -name '*.canvas' \) -not -path '*/.*' | wc -l`)
    with the indexed entity count
    (`sqlite3 ~/.basic-memory/memory.db "select count(*) from entity e join project p on p.id=e.project_id where p.name='mastermind'"`).
    Below 90 %: report the fix `basic-memory reindex --full -p mastermind`.

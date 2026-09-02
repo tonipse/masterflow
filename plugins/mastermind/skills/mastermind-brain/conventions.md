@@ -46,7 +46,10 @@ tags: [project, group/fwg-one, stack/nextjs, ...]   # group/*: fwg-one | rocketa
 ```
 
 `write_note` creates the file from `content`; put the complete frontmatter block at the top of `content`
-so every field is set. Never leave `null` values in a note you write.
+so every field is set. Never write `null` values: omit a key you cannot fill (`repo` without a remote,
+`last_wrap` before the first wrap, `source` unknown). Readers treat a missing key as "unknown"/"never".
+`edit_note` cannot add a key; add one with `find_replace` on an existing line, e.g. `find_text: "type: project"`
+→ `type: project\nrepo: github.com/org/name`.
 
 ## 3. Titles
 
@@ -84,9 +87,9 @@ Prose first (2–6 sentences of context), then the sections of the type, then `#
 
 ## 7. Canonical stack tags (`stack/<tag>`)
 
-`nextjs react vue svelte astro typescript nodejs python dotnet blazor php laravel go flutter electron express fastify hono`
+`nextjs react vue nuxt svelte sveltekit astro typescript nodejs python fastapi django flask sqlalchemy pandas dotnet blazor php laravel go flutter electron express fastify hono`
 `supabase neon postgres mysql mssql mongodb redis prisma drizzle`
-`aws-lambda aws vercel docker cloudflare`
+`aws-lambda aws vercel docker cloudflare sentry`
 `inngest n8n make zapier`
 `shopify clickup asana pipedrive slack gmail google-api google-drive google-sheets apps-script`
 `anthropic openai ai-sdk`

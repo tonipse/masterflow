@@ -31,10 +31,12 @@ ERROR_RE = re.compile(r"(error|exception|traceback|failed|FAIL\b|ENOENT|EACCES|d
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 
 
-def run(cmd, cwd=None):
+def run(cmd, cwd=None, keep_indent=False):
     try:
         r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=5)
-        return r.stdout.strip() if r.returncode == 0 else ""
+        if r.returncode != 0:
+            return ""
+        return r.stdout.rstrip("\n") if keep_indent else r.stdout.strip()
     except Exception:
         return ""
 
@@ -45,11 +47,12 @@ def clip(s, n):
 
 
 def parse_since(s):
-    if not s or s.lower() in ("none", "null", "never", ""):
+    s = (s or "").strip().strip("'\"").strip()
+    if not s or s.lower() in ("none", "null", "never", "~"):
         return None
-    for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+    for fmt, n in (("%Y-%m-%dT%H:%M:%S", 19), ("%Y-%m-%d %H:%M:%S", 19), ("%Y-%m-%d", 10)):
         try:
-            return dt.datetime.strptime(s[: len(fmt) + 2].strip("'\""), fmt)
+            return dt.datetime.strptime(s[:n], fmt)
         except Exception:
             continue
     return None
@@ -94,8 +97,8 @@ def section_git(cwd, since):
     label = f"seit {since.strftime('%Y-%m-%d')}" if since else "letzte 24 h"
     out.append(f"- Commits ({label}):")
     out.extend([f"  - {l}" for l in log.splitlines()] if log else ["  - keine"])
-    status = run(["git", "status", "--short"], cwd)
-    lines = status.splitlines()
+    status = run(["git", "status", "--short"], cwd, keep_indent=True)
+    lines = [l for l in status.splitlines() if l.strip()]
     out.append(f"- Working tree: {len(lines)} geänderte/neue Dateien" + (":" if lines else ""))
     out.extend(f"  - {l}" for l in lines[:MAX_STATUS])
     if len(lines) > MAX_STATUS:
@@ -153,19 +156,34 @@ def section_memory(cwd, root, since):
 
 
 def find_transcript(session_id, cwd, root):
-    if not session_id:
-        return None
+    """Locate this session's transcript; falls back to env and to the newest transcript of the project."""
     base = Path.home() / ".claude" / "projects"
+    sid = (session_id or "").strip()
+    if not sid or sid.startswith("$"):  # placeholder not substituted (e.g. remote sessions)
+        sid = os.environ.get("CLAUDE_SESSION_ID") or os.environ.get("CLAUDE_CODE_SESSION_ID") or ""
+    if sid:
+        for p in [root, cwd]:
+            if p:
+                f = base / slug(p) / f"{sid}.jsonl"
+                if f.is_file():
+                    return f
+        try:
+            hits = list(base.glob(f"*/{sid}.jsonl"))
+            if hits:
+                return hits[0]
+        except Exception:
+            pass
     for p in [root, cwd]:
-        if p:
-            f = base / slug(p) / f"{session_id}.jsonl"
-            if f.is_file():
-                return f
-    try:
-        hits = list(base.glob(f"*/{session_id}.jsonl"))
-        return hits[0] if hits else None
-    except Exception:
-        return None
+        if not p:
+            continue
+        d = base / slug(p)
+        try:
+            newest = max(d.glob("*.jsonl"), key=lambda f: f.stat().st_mtime, default=None)
+        except Exception:
+            newest = None
+        if newest:
+            return newest
+    return None
 
 
 def local_hhmm(ts):
@@ -219,7 +237,7 @@ def section_timeline(transcript):
                         continue
                     if isinstance(content, str):
                         txt = content.strip()
-                        if txt and not txt.startswith("<"):
+                        if txt and not txt.startswith(("<", "[Request interrupted")):
                             prompts.append((ts, clip(txt, CLIP_PROMPT)))
                     elif isinstance(content, list):
                         for b in content:
@@ -227,7 +245,7 @@ def section_timeline(transcript):
                                 continue
                             if b.get("type") == "text":
                                 txt = str(b.get("text", "")).strip()
-                                if txt and not txt.startswith("<"):
+                                if txt and not txt.startswith(("<", "[Request interrupted")):
                                     prompts.append((ts, clip(txt, CLIP_PROMPT)))
                             elif b.get("type") == "tool_result":
                                 txt = block_text(b.get("content"))

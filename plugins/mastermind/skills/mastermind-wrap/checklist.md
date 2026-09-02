@@ -11,7 +11,7 @@ Walk through the session and the evidence report once per type. Write down every
 | decision | a choice between real alternatives that constrains future work in this or other projects | context, decision, alternatives with why-not, consequences |
 | pattern | an approach that worked and generalizes beyond one file (idempotency, retries, auth flows, data modelling, testing techniques) | when to apply, approach, example, pitfalls |
 | howto | a multi-step procedure that only worked in a specific order or with specific flags (deploy, migration, setup, tooling) | goal, prerequisites, numbered steps with commands verbatim, pitfalls |
-| stack | new experience with a tool/library: version quirk, config that works, limit, API behaviour | fact with version and date; goes into `stacks/<tool>.md` (append) or a new stack note if there are ≥ 2 facts |
+| stack | new experience with a tool/library: version quirk, config that works, limit, API behaviour | fact with version and date. Placement rule: append to an existing `stacks/<tool>.md`; create a new stack note only when there are ≥ 2 facts for that tool; a single fact without a stack note stays inside the note that carries it |
 | hub update | stack changed, new convention, architecture insight, changed status or open points | see section C |
 
 ## B. Skip list (do not write these into the vault)
@@ -28,7 +28,9 @@ Walk through the session and the evidence report once per type. Write down every
 ## C. Hub update schema
 
 Use `edit_note` with `replace_section` for `## Status` and `## Offene Punkte`, `append` under
-`## Bekannte Gotchas` / `## Wichtige Decisions` for new links, `find_replace` for frontmatter dates.
+`## Bekannte Gotchas` / `## Wichtige Decisions` for new links, `find_replace` for frontmatter lines.
+There is no "add key" operation: to add a missing frontmatter key use `find_replace` with
+`find_text: "type: project"` and replacement `type: project\n<key>: <value>` (one key per call).
 
 - frontmatter: `updated: 'YYYY-MM-DD'`, `last_wrap: 'YYYY-MM-DD'`; add `repo`/`path` if missing.
 - `## Stack`: only if the stack changed (new major dependency, removed service).
@@ -38,11 +40,14 @@ Use `edit_note` with `replace_section` for `## Status` and `## Offene Punkte`, `
 - `## Status`: replace with exactly one line `Stand YYYY-MM-DD: <state in one sentence>`.
 - `## Offene Punkte`: replace the whole list: keep items still open, drop finished ones, add new ones.
   Keep it under 8 bullets, each one line.
+- Stack notes: for each new gotcha with a matching `stacks/<tag>.md`, append `- [gotcha] Siehe [[Titel]] #tag`
+  under its `## Bekannte Gotchas`.
 
 ## D. Limits
 
-- At most 7 notes per wrap; prefer fewer, richer notes. If more candidates qualify, take the most
-  reusable ones and list the rest under "übersprungen" in the report so the user can ask for them.
+- Rank all candidates by reusability. The top 7 proceed as new or extended notes; hub edits and appends
+  to existing stack notes are not counted. Every candidate below the cut is listed under `Übersprungen`
+  with a five-word reason so the user can ask for it by name.
 - Extend existing notes before creating new ones (conventions §8).
 - Never rewrite an existing note wholesale; use `edit_note` operations so nothing gets lost.
 
@@ -61,4 +66,5 @@ Hub: [[<hub>]] aktualisiert (Status, offene Punkte: <n>, neue Links: <n>).
 Vault-Commit: <hash> · Index: <ok | Warnung + Befehl>
 ```
 
-In `dry` mode print the same tables with action `geplant` and change nothing.
+Dry mode: same tables with action `geplant`; `Hub: [[<hub>]] geplant (…)` or `Hub: fehlt (würde per
+/mastermind:project angelegt)`; `Vault-Commit: keiner (dry)`.

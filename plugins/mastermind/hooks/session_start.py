@@ -192,6 +192,14 @@ def find_vault():
     return p if p.is_dir() else None
 
 
+def scalar(v):
+    """Frontmatter scalar as text; YAML nulls and empty lists count as empty."""
+    if v is None or isinstance(v, list):
+        return ""
+    s = str(v).strip()
+    return "" if s.lower() in ("null", "none", "~", "") else s
+
+
 def load_hubs(vault):
     hubs = []
     for f in sorted((vault / "projects").glob("*.md")):
@@ -201,17 +209,18 @@ def load_hubs(vault):
         if fm.get("type") not in (None, "project"):
             continue
         tags = as_list(fm.get("tags"))
-        paths = as_list(fm.get("paths")) + ([str(fm["path"])] if fm.get("path") else [])
+        paths = [scalar(p) for p in as_list(fm.get("paths"))] + [scalar(fm.get("path"))]
         hubs.append({
             "file": f,
             "stem": f.stem,
-            "title": str(fm.get("title") or f.stem),
+            "title": scalar(fm.get("title")) or f.stem,
             "body": body,
-            "repo": normalize_remote(str(fm.get("repo") or "")),
-            "paths": [realpath(p) for p in paths if p and p not in ("null", "None")],
+            "repo": normalize_remote(scalar(fm.get("repo"))),
+            # only absolute paths: "~" or relative values would match far too much
+            "paths": [realpath(p) for p in paths if p.startswith("/")],
             "stacks": [t.split("/", 1)[1] for t in tags if t.startswith("stack/")],
-            "updated": str(fm.get("updated") or ""),
-            "last_wrap": str(fm.get("last_wrap") or ""),
+            "updated": scalar(fm.get("updated")),
+            "last_wrap": scalar(fm.get("last_wrap")),
         })
     return hubs
 
@@ -241,12 +250,17 @@ def match_hub(hubs, ident):
         for h in hubs:
             if h["repo"] and h["repo"] == ident["remote"]:
                 return h, "repo"
+    # path: the most specific (longest) hub path that contains root or cwd wins
+    best = None
     for cand in [c for c in (ident["root"], ident["cwd"]) if c]:
         rc = realpath(cand)
         for h in hubs:
             for p in h["paths"]:
                 if rc == p or rc.startswith(p + os.sep):
-                    return h, "path"
+                    if best is None or len(p) > len(best[1]):
+                        best = (h, p)
+    if best:
+        return best[0], "path"
     n = norm_name(ident["name"])
     if n:
         for h in hubs:
@@ -295,14 +309,20 @@ def stack_notes(vault, stacks):
 
 
 def open_points(body):
+    """Lines of '## Status' (bullets or the single 'Stand …' line) and '## Offene Punkte'."""
     lines, current = [], None
     for line in body.splitlines():
         if line.startswith("## "):
             head = line[3:].strip().lower()
             current = "open" if head.startswith(("offene punkte", "status", "open")) else None
             continue
-        if current and line.strip().startswith(("- ", "* ")) and line.strip() not in ("-", "- ", "* "):
-            lines.append(clip(line.strip()[2:]))
+        if not current or line.startswith("#"):
+            continue
+        s = line.strip()
+        if s.startswith(("- ", "* ")):
+            s = s[2:].strip()
+        if s and s not in ("-", "*"):
+            lines.append(clip(s))
         if len(lines) >= MAX_OPEN_LINES:
             break
     return lines
@@ -432,8 +452,8 @@ def render(vault, ident, hub, how, recent, similar, stacks_with_notes, points, s
             out.append("  Stack notes to consult: " + " · ".join(f"[[{s}]]" for s in stacks_with_notes))
         if ident["git"]:
             out.append("  Onboarding runs automatically at the first capture or at /mastermind:wrap; run /mastermind:project to create the hub now.")
-    files, indexed, _ = health
-    if indexed is None:
+    files, indexed, health_warnings = health
+    if indexed is None or health_warnings:
         out.append(f"INDEX: {files} notes in vault, index state unknown.")
     elif files and indexed < 0.9 * files:
         out.append(f"INDEX WARNING: only {indexed}/{files} notes are indexed; search_notes is blind. "
@@ -477,7 +497,7 @@ def main():
             notes = stack_notes(vault, hub["stacks"])
             points = open_points(hub["body"])
         else:
-            sniffed = sniff_stack(ident["root"] or (cwd if ident["git"] else None))
+            sniffed = sniff_stack(ident["root"] or cwd)
             similar = similar_hubs(hubs, sniffed)
             notes = stack_notes(vault, sniffed)
     except Exception as e:
