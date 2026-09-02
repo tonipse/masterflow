@@ -9,15 +9,17 @@ Design rules:
 - Python 3 standard library only.
 - Every stage is guarded; problems become one warning line, never a failure.
 - Always exit 0 and always print valid JSON.
-- Budget: well under 200 ms, roughly 400-500 tokens of output.
+- Budget: under 150 ms, at most about 650 tokens of output.
 """
 
+import datetime as dt
 import json
 import os
 import re
 import sqlite3
 import subprocess
 import sys
+import urllib.request
 from pathlib import Path
 
 MAX_RECENT = 5
@@ -25,6 +27,10 @@ MAX_SIMILAR = 3
 MAX_OPEN_LINES = 5
 LINE_CLIP = 140
 NOTE_DIRS = ("gotchas", "patterns", "decisions", "howtos", "stacks")
+UNWRAPPED_MIN_EDITS = 5
+UNWRAPPED_MAX_AGE_DAYS = 14
+UNWRAPPED_MAX_NOTIFY = 3
+OLLAMA_TIMEOUT = 0.3
 
 # dependency name -> canonical stack tag (matches the stack/* tags used in the vault)
 DEP_TAGS = {
@@ -308,6 +314,80 @@ def stack_notes(vault, stacks):
     return [s for s in stacks if (vault / "stacks" / f"{s}.md").is_file()]
 
 
+def verlauf_last(body):
+    """Last bullet of '## Verlauf' (hub anatomy v3), without the leading dash."""
+    last, current = "", False
+    for line in body.splitlines():
+        if line.startswith("## "):
+            current = line[3:].strip().lower() == "verlauf"
+            continue
+        if current and line.strip().startswith(("- ", "* ")):
+            last = line.strip()[2:].strip()
+    return clip(last) if last else ""
+
+
+def inbox_open(vault, hub_stem):
+    """Number of open '- [ ]' candidates in inbox/<hub>.md."""
+    f = vault / "inbox" / f"{hub_stem}.md"
+    if not f.is_file():
+        return 0
+    return sum(1 for l in read_text(f).splitlines() if l.startswith("- [ ]"))
+
+
+def state_file_for(root):
+    d = Path(os.environ.get("XDG_STATE_HOME") or "~/.local/state").expanduser() / "mastermind"
+    return d / ("last-session-" + re.sub(r"[^A-Za-z0-9-]", "-", str(root)) + ".json")
+
+
+def unwrapped_notice(root, source, session_id):
+    """UNWRAPPED line when the previous session of this project ended with edits but without /mastermind:wrap."""
+    if source not in ("startup", "clear", "resume"):
+        return None
+    f = state_file_for(root)
+    try:
+        st = json.loads(f.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if st.get("wrapped") or (st.get("edits") or 0) < UNWRAPPED_MIN_EDITS:
+        return None
+    if session_id and st.get("session_id") == session_id:
+        return None  # resume of the very same session
+    if int(st.get("notified") or 0) >= UNWRAPPED_MAX_NOTIFY:
+        return None
+    try:
+        ended = dt.datetime.fromisoformat(str(st.get("ended")))
+        if (dt.datetime.now(ended.tzinfo) - ended).days > UNWRAPPED_MAX_AGE_DAYS:
+            return None
+        ended_s = ended.strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        ended_s = str(st.get("ended") or "?")[:16]
+    st["notified"] = int(st.get("notified") or 0) + 1
+    try:
+        f.write_text(json.dumps(st, indent=1), encoding="utf-8")
+    except Exception:
+        pass
+    sid = str(st.get("session_id") or "?")[:8]
+    return (f"UNWRAPPED: session {sid} ended {ended_s} with {st.get('edits')} edits and no /mastermind:wrap "
+            "-> run /mastermind:wrap last")
+
+
+def ollama_warning(cfg):
+    """Warn when the configured LiteLLM embedding endpoint (local Ollama) does not answer."""
+    if (cfg or {}).get("semantic_embedding_provider") != "litellm":
+        return None
+    base = str(cfg.get("semantic_embedding_api_base") or "")
+    if not re.search(r"^https?://(localhost|127\.0\.0\.1)", base):
+        return None
+    root = re.sub(r"/v1/?$", "", base.rstrip("/"))
+    try:
+        with urllib.request.urlopen(root + "/api/version", timeout=OLLAMA_TIMEOUT) as r:
+            if r.status == 200:
+                return None
+    except Exception:
+        pass
+    return f"Ollama not reachable at {base}; semantic search will fail (brew services start ollama)"
+
+
 def open_points(body):
     """Lines of '## Status' (bullets or the single 'Stand …' line) and '## Offene Punkte'."""
     lines, current = [], None
@@ -377,14 +457,17 @@ def sniff_stack(root):
 
 # --------------------------------------------------------------------------- index health
 def index_health(vault):
+    """(files, stats or None, warnings): stats = entities, full-text rows with content, observations in table/FTS."""
     warnings = []
     files = 0
     for dirpath, dirnames, filenames in os.walk(vault):
-        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        # hidden folders and inbox/ are not indexed (.bmignore); templates are indexed and count on both sides
+        dirnames[:] = [d for d in dirnames if not d.startswith(".") and not (Path(dirpath) == vault and d == "inbox")]
         # basic-memory indexes Markdown notes and Obsidian canvas files
         files += sum(1 for f in filenames if f.endswith((".md", ".canvas")) and not f.startswith("."))
     cfg_dir = Path(os.environ.get("BASIC_MEMORY_CONFIG_DIR") or "~/.basic-memory").expanduser()
-    indexed = None
+    cfg = {}
+    stats = None
     try:
         cfg = json.loads(read_text(cfg_dir / "config.json") or "{}")
         cfg_path = cfg.get("projects", {}).get("mastermind", {}).get("path")
@@ -396,14 +479,23 @@ def index_health(vault):
     if db.is_file():
         try:
             con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=0.5)
-            row = con.execute(
-                "select count(*) from entity e join project p on p.id=e.project_id where p.name='mastermind'"
-            ).fetchone()
+            row = con.execute("select id from project where name='mastermind'").fetchone()
+            if row:
+                pid = row[0]
+                q = lambda sql: int(con.execute(sql, (pid,)).fetchone()[0])
+                stats = {
+                    "entities": q("select count(*) from entity where project_id=?"),
+                    "fts": q("select count(distinct file_path) from search_index where project_id=? and type='entity' and length(content_stems)>0"),
+                    "obs": q("select count(*) from observation where project_id=?"),
+                    "obs_fts": q("select count(*) from search_index where project_id=? and type='observation'"),
+                }
             con.close()
-            indexed = int(row[0]) if row else None
         except Exception:
-            indexed = None
-    return files, indexed, warnings
+            stats = None
+    w = ollama_warning(cfg)
+    if w:
+        warnings.append(w)
+    return files, stats, warnings
 
 
 # --------------------------------------------------------------------------- rendering
@@ -416,13 +508,17 @@ RULES = (
     "(gotcha with cause+fix, decision with alternatives, pattern, how-to, stack quirk): "
     "load skill mastermind:mastermind-brain (conventions), search_notes for duplicates, then write_note/edit_note, "
     "and tell the user in one line with the note path. Do not ask for permission. "
-    "Never put project status, secrets, guesses or trivia into the vault; project status belongs to auto memory.\n"
+    "Never put project status, secrets, guesses or trivia into the vault; project status belongs to auto memory. "
+    "Promising but unverified -> one line in inbox/<hub>.md, not a note.\n"
+    "- GUARDRAILS: a decisions/ note for the area you touch is a constraint; say a contradiction in one line "
+    "before acting; if the user overrides, update the decision note (dated fact), never bypass it silently.\n"
     "- SESSION END: the user runs /mastermind:wrap (harvests the session, updates the hub, commits the vault). "
     "If the session did substantial work and the user starts wrapping up without it, remind them once."
 )
 
 
-def render(vault, ident, hub, how, recent, similar, stacks_with_notes, points, sniffed, health, warnings):
+def render(vault, ident, hub, how, recent, similar, stacks_with_notes, points, sniffed, health, warnings,
+           verlauf="", inbox=0, unwrapped=None):
     out = ["<mastermind>"]
     out.append(f"Mastermind brain is active (vault {vault}, MCP server mastermind-memory, notes are written in German).")
     out.append(RULES)
@@ -433,6 +529,10 @@ def render(vault, ident, hub, how, recent, similar, stacks_with_notes, points, s
         out.append(f"PROJECT: {label} -> hub [[{hub['title']}]] (matched by {how}; updated {hub['updated'] or '?'}; last wrap {wrap}; stack: {stack})")
         if points:
             out.append("  Open points / status: " + " | ".join(points))
+        if verlauf:
+            out.append("  Verlauf: " + verlauf)
+        if inbox:
+            out.append(f"  Inbox: {inbox} offene Kandidaten in inbox/{hub['stem']}.md (promote or prune them in /mastermind:wrap)")
         if recent:
             out.append("  Recent notes for this project: " + " · ".join(f"[[{t}]] ({u or '?'})" for u, t, _ in recent))
         if similar:
@@ -452,14 +552,24 @@ def render(vault, ident, hub, how, recent, similar, stacks_with_notes, points, s
             out.append("  Stack notes to consult: " + " · ".join(f"[[{s}]]" for s in stacks_with_notes))
         if ident["git"]:
             out.append("  Onboarding runs automatically at the first capture or at /mastermind:wrap; run /mastermind:project to create the hub now.")
-    files, indexed, health_warnings = health
-    if indexed is None or health_warnings:
+    if unwrapped:
+        out.append(unwrapped)
+    files, stats, _ = health
+    if stats is None:
         out.append(f"INDEX: {files} notes in vault, index state unknown.")
-    elif files and indexed < 0.9 * files:
-        out.append(f"INDEX WARNING: only {indexed}/{files} notes are indexed; search_notes is blind. "
-                   "Tell the user to run: basic-memory reindex --full -p mastermind")
     else:
-        out.append(f"INDEX: {indexed}/{files} notes indexed.")
+        ent, fts, obs, obs_fts = stats["entities"], stats["fts"], stats["obs"], stats["obs_fts"]
+        fts_pct = (100 * fts // ent) if ent else 100
+        obs_pct = (100 * obs_fts // obs) if obs else 100
+        if files and ent < 0.9 * files:
+            out.append(f"INDEX WARNING: only {ent}/{files} notes are indexed; search_notes is blind. "
+                       "Tell the user to run /mastermind:index repair-index (never basic-memory reindex --full).")
+        elif fts_pct < 90 or obs_pct < 90:
+            out.append(f"INDEX WARNING: {ent}/{files} notes indexed, but full text covers only {fts}/{ent} ({fts_pct} %) "
+                       f"and observations {obs_fts}/{obs} ({obs_pct} %): exact identifiers in note bodies are invisible to "
+                       "search_notes. Tell the user to run /mastermind:index repair-index.")
+        else:
+            out.append(f"INDEX: {ent}/{files} notes indexed, full text {fts_pct} %, observations {obs_pct} %.")
     for w in warnings:
         out.append(f"WARNING: {w}")
     out.append("</mastermind>")
@@ -485,6 +595,7 @@ def main():
         ident = {"cwd": cwd, "root": None, "name": Path(cwd).name, "remote": "", "git": False}
         warnings.append(f"project identity failed: {e}")
     hubs, hub, how, recent, similar, notes, points, sniffed = [], None, None, [], [], [], [], []
+    verlauf, inbox, unwrapped = "", 0, None
     try:
         hubs = load_hubs(vault)
         hub, how = match_hub(hubs, ident)
@@ -496,6 +607,8 @@ def main():
             similar = similar_hubs(hubs, hub["stacks"], exclude_stem=hub["stem"])
             notes = stack_notes(vault, hub["stacks"])
             points = open_points(hub["body"])
+            verlauf = verlauf_last(hub["body"])
+            inbox = inbox_open(vault, hub["stem"])
         else:
             sniffed = sniff_stack(ident["root"] or cwd)
             similar = similar_hubs(hubs, sniffed)
@@ -503,12 +616,17 @@ def main():
     except Exception as e:
         warnings.append(f"context enrichment failed: {e}")
     try:
+        unwrapped = unwrapped_notice(ident["root"] or cwd, data.get("source") or "startup", data.get("session_id") or "")
+    except Exception as e:
+        warnings.append(f"state file check failed: {e}")
+    try:
         health = index_health(vault)
         warnings.extend(health[2])
     except Exception as e:
         health = (0, None, [])
         warnings.append(f"index health check failed: {e}")
-    emit(render(vault, ident, hub, how, recent, similar, notes, points, sniffed, health, warnings))
+    emit(render(vault, ident, hub, how, recent, similar, notes, points, sniffed, health, warnings,
+                verlauf=verlauf, inbox=inbox, unwrapped=unwrapped))
 
 
 if __name__ == "__main__":
