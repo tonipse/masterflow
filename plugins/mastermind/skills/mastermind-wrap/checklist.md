@@ -25,7 +25,10 @@ Walk through the session and the evidence report once per type. Write down every
 - Secrets, tokens, customer data, internal URLs with credentials.
 - Long narratives. A note explains one topic; the session story is not a topic.
 
-## C. Hub update schema
+**Focus rule (conventions §11):** touch only the notes and hubs that this session's evidence affects. A wrap
+never tidies, rewords or "improves" unrelated notes, and never rewrites `## Verlauf` lines.
+
+## C. Hub update schema (anatomy v3)
 
 Use `edit_note` with `replace_section` for `## Status` and `## Offene Punkte`, `append` under
 `## Bekannte Gotchas` / `## Wichtige Decisions` for new links, `find_replace` for frontmatter lines.
@@ -38,8 +41,17 @@ There is no "add key" operation: to add a missing frontmatter key use `find_repl
 - `## Bekannte Gotchas` / `## Wichtige Decisions`: one bullet per new or updated note:
   `- [gotcha] Siehe [[Titel]] #tag` / `- [decision] <one line> (siehe [[Titel]])`.
 - `## Status`: replace with exactly one line `Stand YYYY-MM-DD: <state in one sentence>`.
-- `## Offene Punkte`: replace the whole list: keep items still open, drop finished ones, add new ones.
-  Keep it under 8 bullets, each one line.
+- `## Offene Punkte`: replace the whole list: keep items still open, drop resolved ones, add new ones.
+  Only unknowns, risks and unconfirmed assumptions a later session must know (**no to-dos**, tasks live in
+  the repo). At most 8 bullets, each one line.
+- `## Quellen`: one line per source actually read in this wrap, `- <Quelle> (geerntet bis YYYY-MM-DD)`;
+  refresh the date of an existing line (`find_replace`), add a line for a new source (e.g. the project's
+  auto-memory folder, the session transcript). Never remove lines. Missing section → add it before `## Verwandt`.
+- `## Verlauf` (last section, append-only): `edit_note` `append` exactly one line
+  `- YYYY-MM-DD wrap · <n> neu, <m> erweitert, Hub: <was> · Quelle: Session <id-kurz>` (`last` mode:
+  `wrap (nachgeholt)`). Existing lines are never edited or deleted. If the hub still lacks `## Verlauf`
+  (pre-v3 hub), append the heading first; if `## Verwandt` is not directly before it, leave the order alone
+  and mention it in the report (`/mastermind:index fix` repairs structure).
 - Stack notes: for each new gotcha with a matching `stacks/<tag>.md`, append `- [gotcha] Siehe [[Titel]] #tag`
   under its `## Bekannte Gotchas`.
 
@@ -50,6 +62,12 @@ There is no "add key" operation: to add a missing frontmatter key use `find_repl
   with a five-word reason so the user can ask for it by name.
 - Extend existing notes before creating new ones (conventions §8).
 - Never rewrite an existing note wholesale; use `edit_note` operations so nothing gets lost.
+- **Inbox rule (conventions §12):** a candidate that is reusable but fell under the 7-note cut, or that is
+  promising but not verified in this session, becomes one line in `inbox/<hub>.md`
+  (`- [ ] YYYY-MM-DD · <typ> · <Aussage> · Beleg: <Datei/Session> · Grund: <über Limit | unverifiziert>`);
+  create the file with its minimal frontmatter if missing. Trivia and skip-list items (§B) only appear in
+  the report's `Übersprungen` line, never in the inbox. Inbox lines that this session verified and wrote as
+  notes are promoted in place (`[ ]` → `[x]`, ` → [[Titel]]` appended).
 
 ## E. Report template (German, printed to the user)
 
@@ -61,10 +79,14 @@ There is no "add key" operation: to add a missing frontmatter key use `find_repl
 | [[Titel]] | gotcha | neu | gotchas/Titel.md |
 | [[Titel]] | stack | erweitert | stacks/inngest.md |
 
-Hub: [[<hub>]] aktualisiert (Status, offene Punkte: <n>, neue Links: <n>).
+Hub: [[<hub>]] aktualisiert (Status, offene Punkte: <n>, Quellen: <n>, neue Links: <n>).
+Verlauf: 1 Zeile
+Inbox: <n> neu, <m> befördert
 Übersprungen: <Kandidat> (Grund in 5 Wörtern) · …
-Vault-Commit: <hash> · Index: <ok | Warnung + Befehl>
+Lint: <0 ERROR, n WARN | behoben: …> · Vault-Commit: <hash> · Index: <ok | Warnung + Befehl>
 ```
 
+`last` mode adds the line `Nachgeholt aus Transkript: Session <id-kurz> (<Datum>)` under the heading.
 Dry mode: same tables with action `geplant`; `Hub: [[<hub>]] geplant (…)` or `Hub: fehlt (würde per
-/mastermind:project angelegt)`; `Vault-Commit: keiner (dry)`.
+/mastermind:project angelegt)`; `Verlauf: geplant`; `Inbox: <n> geplant`; `Lint: übersprungen (dry)`;
+`Vault-Commit: keiner (dry)`.

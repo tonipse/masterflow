@@ -14,7 +14,12 @@ Notes are written in **German**; identifiers, commands, error strings stay verba
 | `howto` | `howtos` | multi-step procedure that took effort to figure out |
 | `stack` | `stacks` | experience with one tool/library/service: setup, configs, known gotchas (links) |
 | `project` | `projects` | exactly one hub per code project (bridge into the knowledge) |
-| `moc` | root / `projects` / `patterns` | maps of content (`index`, `_projects-overview`, `_patterns-overview`) |
+| `moc` | root / `projects` / `patterns` | maps of content (`index`, `_projects-overview`, `_patterns-overview`); umbrella hubs (`fwg-one`, `rocketads`, `fwg-warehouse`) are projects that also carry the tag `moc` |
+| `note` | root only | the root files `CLAUDE.md`, `AGENTS.md`, `user.md`, `soul.md` (conventions, agent instructions, cross-project user facts, behaviour charter) |
+| `inbox` | `inbox` | one file per hub with unverified candidates (§12); not indexed |
+
+`note` and `inbox` are **not** knowledge notes: the frontmatter, title and linking rules of §2–§6 do not
+apply to them (root files only have line limits, see §9; inbox files follow §12).
 
 Folder names are exactly these words. Permalinks look like `mastermind/gotchas/...` but `mastermind/` is
 **not** a folder. Never write into `mastermind/<folder>`.
@@ -32,7 +37,7 @@ status: active                  # draft | active | archived | superseded
 projects: ["[[supportpilot]]"]  # hubs where this applies; ALWAYS quoted wikilinks
 confidence: high                # low | medium | high (how sure, how well verified)
 related: ["[[index]]"]          # quoted wikilinks
-source: <commit, file, URL or ticket, verbatim>   # optional but strongly preferred
+source: <commit, file, URL or ticket, verbatim>   # REQUIRED for gotcha, decision, pattern, howto; optional for stack, project, moc
 ---
 ```
 
@@ -47,7 +52,10 @@ tags: [project, group/fwg-one, stack/nextjs, ...]   # group/*: fwg-one | rocketa
 
 `write_note` creates the file from `content`; put the complete frontmatter block at the top of `content`
 so every field is set. Never write `null` values: omit a key you cannot fill (`repo` without a remote,
-`last_wrap` before the first wrap, `source` unknown). Readers treat a missing key as "unknown"/"never".
+`last_wrap` before the first wrap). Readers treat a missing key as "unknown"/"never".
+A gotcha, decision, pattern or howto without a `source` is not written: name the commit, file, session or
+URL you verified it with (the lint marks a missing `source` as an error for new notes). If you cannot,
+the candidate goes to the inbox (§12), not into a note.
 `edit_note` cannot add a key; add one with `find_replace` on an existing line, e.g. `find_text: "type: project"`
 → `type: project\nrepo: github.com/org/name`.
 
@@ -68,7 +76,19 @@ Prose first (2–6 sentences of context), then the sections of the type, then `#
 - **decision**: `## Kontext` · `## Entscheidung` · `## Alternativen` · `## Konsequenzen` · `## Verwandt`
 - **howto**: `## Ziel` · `## Voraussetzungen` · `## Schritte` (numbered, commands verbatim) · `## Fallstricke` · `## Verwandt`
 - **stack**: `## Setup` · `## Bewährte Configs` · `## Bekannte Gotchas` (links) · `## Verwandt`
-- **project hub**: `## Zweck` · `## Stack` · `## Architektur / Eigenheiten` · `## Konventionen` · `## Wichtige Decisions` · `## Bekannte Gotchas` · `## Status` · `## Offene Punkte` · `## Verwandt`
+- **project hub** (anatomy v3, sections in exactly this order): `## Zweck` · `## Stack` · `## Architektur / Eigenheiten` ·
+  `## Konventionen` · `## Wichtige Decisions` · `## Bekannte Gotchas` · `## Status` · `## Offene Punkte` · `## Quellen` ·
+  `## Verwandt` · `## Verlauf`
+  - `## Status`: exactly one line `Stand YYYY-MM-DD: <state in one sentence>`; replaced on every wrap.
+  - `## Offene Punkte`: unknowns, risks and unconfirmed assumptions a later session must know; at most 8 bullets;
+    **no to-dos** (tasks live in the repo, never in the vault).
+  - `## Quellen`: one line per source that fed the hub: `- <Quelle> (geerntet bis YYYY-MM-DD)`. Standard sources:
+    `CLAUDE.md`/`AGENTS.md`, docs index, specs, the project's auto-memory folder, transcripts. Only add or refresh lines.
+  - `## Verwandt` stays directly before `## Verlauf`, so that `edit_note` `append` always lands in the timeline.
+  - `## Verlauf`: the **last** section, append-only. One line per change:
+    `- YYYY-MM-DD <wrap|ernte|project|capture|manuell> · <Änderung ≤ 120 Zeichen> · Quelle: <Session-ID kurz | commit <hash> | Ledger>`.
+    Lines are never edited or deleted; add a line with `edit_note` `append`.
+  - Umbrella hubs (tag `moc`) keep their own sections and only add `## Verlauf` as the last section.
 
 ## 5. Observations and recency
 
@@ -121,7 +141,10 @@ none fits, and then use it consistently.
 | Reusable engineering knowledge (gotcha, pattern, decision, how-to, stack quirk) | **Vault** note |
 | Project facts others need when they open the repo (stack, conventions, architecture, open points) | **Vault** project hub |
 | Project status, deploy state, what is pushed or not, session progress | Claude auto memory (`~/.claude/projects/<project>/memory/`) or the project's own docs |
-| User preferences and working style | Claude auto memory |
+| Cross-project user facts (role, companies and project groups, tools, environment, preferences) | `~/Mastermind/user.md` (≤ 60 lines; change with `edit_note` `find_replace`/`append`, condense instead of growing) |
+| Behaviour rules that hold in every project (language, autonomy, evidence, limits) | `~/Mastermind/soul.md` (≤ 40 lines; same editing rule) |
+| Project-specific status, preferences and working style | Claude auto memory |
+| Unverified but promising, reusable candidates (also: candidates cut by the 7-note limit of a wrap) | `inbox/<hub>.md` (§12) |
 | Anything already fully documented in the project's docs | link to it from the hub, do not copy |
 | Secrets, tokens, customer data, credentials | nowhere in the vault, ever |
 
@@ -130,4 +153,28 @@ none fits, and then use it consistently.
 Write it only if all four hold: **verified** (test passed, behaviour observed, documentation confirmed),
 **non-obvious** (cost real effort or contradicts the naive expectation), **reusable** (formulated so a
 stranger in another project can apply it), **complete** (cause and fix, or decision and alternatives).
-Otherwise it belongs to auto memory or nowhere.
+Otherwise it belongs to auto memory, to the inbox (§12: reusable but not yet verified) or nowhere.
+
+## 11. Guardrails and focus
+
+- **Decisions are constraints.** When a search returns a `decisions/` note for the area you are working in,
+  treat it as a guardrail. If the planned approach contradicts it, say so in one line **before** acting.
+  If the user overrides it, update the decision note (dated `- [decision]` fact with the new choice; set
+  `status: superseded` only when a separate new note replaces it entirely). Never bypass a decision silently.
+- **Focus.** Touch only the notes and hubs that the evidence of the current session affects. No tidying,
+  rewording or "improving" of unrelated notes during a capture or a wrap.
+
+## 12. Inbox (candidates that are not yet truth)
+
+- Path `inbox/<hub>.md`, one file per hub (`<hub>` = the hub's file stem). Create it when missing, with this
+  minimal frontmatter and nothing else: `title: 'inbox – <hub>'`, `type: inbox`.
+- One candidate per line:
+  `- [ ] YYYY-MM-DD · <typ> · <Aussage> · Beleg: <Datei/Session> · Grund: <über Limit | unverifiziert>`
+  (`<typ>` = gotcha | decision | pattern | howto | stack | hub).
+- Promoted (the candidate was verified and written as a note): edit that line once, `[ ]` → `[x]`, and
+  append ` → [[Titel]]`. Never delete inbox lines in an automated run; the user prunes the inbox.
+- Not indexed: `inbox/` is listed in `~/.basic-memory/.bmignore`, so `search_notes` never returns inbox
+  lines; the files are visible in Obsidian. Health checks (hook, lint, harvest) do not count `inbox/` as notes.
+- Only `/mastermind:wrap`, `/mastermind:project`, the harvest night session and an autonomous capture
+  (promising but unverified) write into the inbox. Trivia and everything on the skip list (wrap checklist §B)
+  never goes there.

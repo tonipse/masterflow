@@ -21,6 +21,9 @@ Before implementing anything non-trivial, search the brain:
   the tool or library, the error string, the domain word. Try a second phrasing if the first returns nothing.
 - Read relevant hits with `read_note`; `build_context("memory://projects/<hub>")` walks the hub's links.
 - Tell the user in one line which prior knowledge you are reusing (with `[[wikilinks]]`).
+- **Guardrails:** a hit in `decisions/` for the area you touch is a constraint (conventions §11). If your plan
+  contradicts it, say so in one line **before** acting. If the user overrides it, update the decision note
+  (dated `- [decision]` fact, `status: superseded` only when a separate note replaces it); never bypass it silently.
 
 Triggers: new feature in a known stack, integrating an API you have seen before, any build/deploy/runtime
 error, choosing a library, touching auth/webhooks/queues/idempotency/money, anything that smells like
@@ -46,6 +49,10 @@ Do **not** capture: project status ("deployed", "not pushed"), guesses, unverifi
 user preferences, secrets, or what the project's own docs already cover (link instead).
 Those belong to Claude's auto memory or nowhere (conventions §9).
 
+**Promising but not yet verified**, and reusable once confirmed → no note. Append one line to
+`inbox/<hub>.md` in the format of conventions §12 (`Grund: unverifiziert`, with the file or session as
+`Beleg`), create the file if missing, and tell the user in one line. Trivia and the skip list never go there.
+
 If the project has no hub yet, create it first with the procedure of the `mastermind-project` skill
 (read `${CLAUDE_SKILL_DIR}/../mastermind-project/SKILL.md`), then capture.
 
@@ -57,4 +64,7 @@ If the project has no hub yet, create it first with the procedure of the `master
 ## Companion commands
 
 `/mastermind:recall <topic>` · `/mastermind:capture` · `/mastermind:gotcha` · `/mastermind:decision` ·
-`/mastermind:project` (onboard or update the hub) · `/mastermind:wrap` (session close-out) · `/mastermind:index` (health check).
+`/mastermind:project` (onboard or update the hub) · `/mastermind:wrap [dry|last] [focus]` (session close-out;
+`last` harvests the previous unwrapped session from its transcript) ·
+`/mastermind:index [fix] [repair-index]` (vault lint via `lint.py`; `fix` applies safe fixes, `repair-index`
+rebuilds missing full-text rows through the running MCP watcher).
