@@ -1,6 +1,16 @@
 ---
 description: Record an architecture decision (ADR) in the Mastermind brain.
+argument-hint: "<decision and why>"
 ---
 
-Record an architecture decision in the Mastermind vault about: $ARGUMENTS
-Use the `decision` type and the templates/decision.md structure (Kontext / Entscheidung / Alternativen / Konsequenzen). Capture the core as `- [decision] …`; set `status: active`; link to the relevant project hub and related notes. Show the note path.
+Record an architecture decision in the Mastermind vault about: "$ARGUMENTS"
+
+1. Load the skill `mastermind:mastermind-brain` (Skill tool) and read its `conventions.md`.
+2. `search_notes` first: an existing decision on the same question gets updated (`status: superseded`
+   on the old fact, new fact with date) rather than duplicated.
+3. `write_note` in folder `decisions` with `## Kontext`, `## Entscheidung` (`- [decision] …`),
+   `## Alternativen` (each with why not), `## Konsequenzen`, `## Verwandt`; `status: active`,
+   `projects` with the hub, `confidence`, `source` (ticket, commit, discussion date).
+4. Link the project hub and the affected stack note; add `- [decision] … (siehe [[Titel]])` to the hub's
+   `## Wichtige Decisions`.
+5. Reply in German with the note path. No questions.

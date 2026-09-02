@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# SessionEnd hook for the mastermind plugin: commit the vault if the session left it dirty.
+# Safety net for autonomous captures when the user forgets /mastermind:wrap.
+# Must finish fast (SessionEnd budget) and must never fail the session.
+VAULT="${MASTERMIND_VAULT:-$HOME/Mastermind}"
+[ -d "$VAULT/.git" ] || exit 0
+cd "$VAULT" || exit 0
+[ -n "$(git status --porcelain 2>/dev/null)" ] || exit 0
+PROJECT="$(basename "${CLAUDE_PROJECT_DIR:-$PWD}")"
+git add -A >/dev/null 2>&1 && git commit -qm "auto: session end (${PROJECT})" >/dev/null 2>&1
+exit 0

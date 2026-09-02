@@ -1,34 +1,60 @@
 ---
-description: Central engineering brain for all code projects. Use at the START of a non-trivial coding task to recall prior knowledge (patterns, gotchas, decisions, how-tos) from the Mastermind vault, and AFTER solving something non-obvious to offer to capture the lesson. Backed by the mastermind-memory MCP server (local basic-memory).
+description: Central engineering brain for all code projects (Mastermind vault via the mastermind-memory MCP server). Use at the START of a non-trivial coding task to recall prior patterns, gotchas, decisions and how-tos, and IMMEDIATELY after verifying something non-obvious to capture it. Also load it before writing any vault note, it carries the note conventions.
 ---
 
 # Mastermind Brain
 
-You have a central, cross-project engineering knowledge vault ("Mastermind") via the `mastermind-memory` MCP server (basic-memory). It stores reusable knowledge: patterns, gotchas+fixes, architecture decisions, stack experience, how-tos. The vault lives at `~/Desktop/Mastermind` and is the SAME from every project (the server is locked to it via `BASIC_MEMORY_MCP_PROJECT=mastermind`, regardless of your current working directory).
+You have a central, cross-project engineering knowledge vault ("Mastermind") through the
+`mastermind-memory` MCP server (basic-memory, local, offline). The vault lives at `~/Mastermind` and is
+the SAME from every project: the server is locked to it via `BASIC_MEMORY_MCP_PROJECT=mastermind`,
+regardless of the current working directory. Notes are German Markdown with frontmatter and wikilinks,
+browsable in Obsidian.
+
+The session-start hook of this plugin already told you which project hub applies, which notes were
+recently learned for it, which projects are similar and which stack notes to consult. Use that.
 
 ## RECALL first (pull)
-At the start of a non-trivial coding task, BEFORE implementing, search the brain with the task's key terms (tech, error, domain) using the `search_notes` tool (semantic/hybrid; prefer `search_type=hybrid`). If relevant notes exist, read them (`read_note` / `build_context`), factor them in, and tell the user which prior knowledge you are reusing.
-Triggers: setting up auth, fixing a build/deploy/runtime error, choosing a library, integrating a known API, or anything that smells like "we've hit this before."
 
-## CAPTURE after (push)
-After solving something non-obvious, hitting and fixing a gotcha, or making an architectural decision, PROACTIVELY OFFER to capture it (never capture silently). On confirmation:
-1. Pick the type: `gotcha | decision | pattern | stack | howto`.
-2. `search_notes` first to avoid duplicates — prefer `edit_note` on an existing note over a near-duplicate.
-3. `write_note` with full frontmatter (see Conventions).
-4. Link it to the relevant `projects/<name>` hub and related notes.
-5. Show the created/updated note path.
+Before implementing anything non-trivial, search the brain:
 
-## Vault layout
-`patterns/ gotchas/ decisions/ stacks/ howtos/ projects/ templates/` · `index.md` (entry MOC) · `CLAUDE.md` (conventions).
+- `search_notes` with `search_type: "hybrid"` (semantic + full text) and two or three key terms:
+  the tool or library, the error string, the domain word. Try a second phrasing if the first returns nothing.
+- Read relevant hits with `read_note`; `build_context("memory://projects/<hub>")` walks the hub's links.
+- Tell the user in one line which prior knowledge you are reusing (with `[[wikilinks]]`).
 
-## Conventions (enforce when writing)
-- Frontmatter: `title`, `type` (`pattern|gotcha|decision|howto|stack|project|moc`), `created`, `updated` (YYYY-MM-DD), `tags`, `status` (`draft|active|archived|superseded`), `projects` (quoted wikilinks, e.g. `["[[supportpilot]]"]`), `confidence` (`low|medium|high`), `related`, optional `source` (verbatim).
-- Body: clear prose; capture atomic facts as observations `- [gotcha] … #tag` / `- [decision] …`.
-- Linking: `[[Note Title]]`; in frontmatter ALWAYS quote internal links. Every note links to ≥1 other (no orphans).
-- Add a recency hint on facts: "(Stand YYYY-MM, Quelle)". One topic per note.
+Triggers: new feature in a known stack, integrating an API you have seen before, any build/deploy/runtime
+error, choosing a library, touching auth/webhooks/queues/idempotency/money, anything that smells like
+"we have hit this before".
+
+## CAPTURE autonomously (push)
+
+Capture **without asking** as soon as you have **verified** something that passes the quality bar in
+`conventions.md` §10 (verified, non-obvious, reusable, complete). Typical moments: a bug whose cause was
+surprising, a workaround that took several attempts, a decision between real alternatives, a procedure
+that only worked in a specific order, a version-specific quirk of a tool.
+
+Procedure:
+
+1. **→ Read** `${CLAUDE_SKILL_DIR}/conventions.md` (types, folders, frontmatter, titles, links, dedup).
+2. Run the dedup procedure (conventions §8). Prefer `edit_note` on an existing note over a near-duplicate.
+3. `write_note` / `edit_note` with complete frontmatter, German prose, observations with tags and recency hints.
+4. Link: the project hub (`projects: ["[[hub]]"]` and `## Verwandt`) plus at least one topical or stack
+   note; add a backlink bullet to the hub (`edit_note`, `append` or `replace_section`).
+5. Tell the user in one line: type, title, path. Then continue with the task.
+
+Do **not** capture: project status ("deployed", "not pushed"), guesses, unverified hypotheses, trivia,
+user preferences, secrets, or what the project's own docs already cover (link instead).
+Those belong to Claude's auto memory or nowhere (conventions §9).
+
+If the project has no hub yet, create it first with the procedure of the `mastermind-project` skill
+(read `${CLAUDE_SKILL_DIR}/../mastermind-project/SKILL.md`), then capture.
 
 ## Tools (mastermind-memory)
-`write_note, read_note, edit_note, move_note, delete_note, search_notes, recent_activity, build_context, list_directory`. (Note: `search_notes` is the full semantic/hybrid search; a minimal `search` also exists but prefer `search_notes`.)
+
+`search_notes`, `read_note`, `build_context`, `write_note`, `edit_note`, `move_note`, `delete_note`,
+`recent_activity`, `list_directory`. `search_notes` is the full hybrid search; prefer it over the minimal `search`.
 
 ## Companion commands
-`/mastermind:recall`, `:capture`, `:gotcha`, `:decision`, `:project`, `:index`.
+
+`/mastermind:recall <topic>` · `/mastermind:capture` · `/mastermind:gotcha` · `/mastermind:decision` ·
+`/mastermind:project` (onboard or update the hub) · `/mastermind:wrap` (session close-out) · `/mastermind:index` (health check).

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# SessionStart hook wrapper for the mastermind plugin.
+# Delegates to session_start.py (Python 3 stdlib only). Never fails the session:
+# without python3 it exits 0 silently and Claude simply gets no brain context.
+DIR="$(cd "$(dirname "$0")" && pwd)"
+if command -v python3 >/dev/null 2>&1; then
+  exec python3 "$DIR/session_start.py"
+fi
+exit 0
