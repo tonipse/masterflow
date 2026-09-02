@@ -30,7 +30,7 @@
 - Modify: Vault-Git (`~/Desktop/Mastermind/.git`)
 - Modify: masterflow-Git, Branch `feat/mastermind-v2`
 
-- [ ] **Step 1: Vault-Zustand committen (untracked Notizen seit Juli)**
+- [x] **Step 1: Vault-Zustand committen (untracked Notizen seit Juli)**
 
 ```bash
 git -C ~/Desktop/Mastermind add -A
@@ -39,7 +39,7 @@ git -C ~/Desktop/Mastermind log --oneline -1
 ```
 Expected: ein neuer Commit, `git status --short` leer.
 
-- [ ] **Step 2: Branch anlegen und Spec + Plan committen**
+- [x] **Step 2: Branch anlegen und Spec + Plan committen**
 
 ```bash
 cd /Users/toni/Desktop/masterflow && git checkout -b feat/mastermind-v2
@@ -53,20 +53,20 @@ git add docs/superpowers && git commit -qm "docs: Mastermind v2 Spec und Plan"
 - Modify: `~/.basic-memory/config.json` (Pfad), `~/Library/Application Support/obsidian/obsidian.json`
 - Copy: `~/.claude/projects/-Users-toni-Desktop-Mastermind/memory/` → `~/.claude/projects/-Users-toni-Mastermind/memory/`
 
-- [ ] **Step 1: Obsidian beenden (hat den Vault offen)**
+- [x] **Step 1: Obsidian beenden (hat den Vault offen)**
 
 ```bash
 osascript -e 'tell application "Obsidian" to quit'; sleep 2; pgrep -x Obsidian || echo "Obsidian beendet"
 ```
 
-- [ ] **Step 2: Verschieben + Übergangs-Symlink**
+- [x] **Step 2: Verschieben + Übergangs-Symlink**
 
 ```bash
 mv ~/Desktop/Mastermind ~/Mastermind && ln -s ~/Mastermind ~/Desktop/Mastermind
 ls ~/Mastermind/index.md && readlink ~/Desktop/Mastermind
 ```
 
-- [ ] **Step 3: basic-memory-Projektpfad umziehen und prüfen**
+- [x] **Step 3: basic-memory-Projektpfad umziehen und prüfen**
 
 ```bash
 basic-memory project move mastermind ~/Mastermind
@@ -75,7 +75,7 @@ sqlite3 ~/.basic-memory/memory.db "select name,path from project;"
 ```
 Expected: beide zeigen `/Users/toni/Mastermind`. Falls `config.json` noch den alten Pfad trägt: per Python-Einzeiler auf den neuen Pfad setzen.
 
-- [ ] **Step 4: Obsidian-Vault-Registry umschreiben und Obsidian starten**
+- [x] **Step 4: Obsidian-Vault-Registry umschreiben und Obsidian starten**
 
 ```bash
 python3 - <<'EOF'
@@ -90,7 +90,7 @@ EOF
 open -a Obsidian
 ```
 
-- [ ] **Step 5: Claude-Auto-Memory des Vault-Projekts mitnehmen**
+- [x] **Step 5: Claude-Auto-Memory des Vault-Projekts mitnehmen**
 
 ```bash
 mkdir -p ~/.claude/projects/-Users-toni-Mastermind && cp -Rn ~/.claude/projects/-Users-toni-Desktop-Mastermind/memory ~/.claude/projects/-Users-toni-Mastermind/
@@ -102,7 +102,7 @@ ls ~/.claude/projects/-Users-toni-Mastermind/memory
 **Files:**
 - Modify: `~/.basic-memory/config.json`
 
-- [ ] **Step 1: Modell, Dimension, auto_update setzen**
+- [x] **Step 1: Modell, Dimension, auto_update setzen**
 
 ```bash
 python3 - <<'EOF'
@@ -116,13 +116,13 @@ print({k:c[k] for k in ('semantic_embedding_model','semantic_embedding_dimension
 EOF
 ```
 
-- [ ] **Step 2: Voller Reindex (lädt das Modell, ~1 GB, einmalig)**
+- [x] **Step 2: Voller Reindex (lädt das Modell, ~1 GB, einmalig)**
 
 ```bash
 basic-memory reindex --full -p mastermind 2>&1 | tail -15
 ```
 
-- [ ] **Step 3: Vollständigkeit prüfen**
+- [x] **Step 3: Vollständigkeit prüfen**
 
 ```bash
 find ~/Mastermind -name '*.md' -not -path '*/.obsidian/*' | wc -l
@@ -131,7 +131,7 @@ sqlite3 ~/.basic-memory/memory.db "select sql from sqlite_master where name='sea
 ```
 Expected: Entity-Anzahl = Dateianzahl (±2), Vektortabelle `float[768]`.
 
-- [ ] **Step 4: Deutsche Testabfragen (Kalibrierung `semantic_min_similarity`)**
+- [x] **Step 4: Deutsche Testabfragen (Kalibrierung `semantic_min_similarity`)**
 
 ```bash
 basic-memory tool search-notes --project mastermind --hybrid "Webhook Signatur Raw Body" --page-size 3
@@ -148,10 +148,10 @@ Expected: HMAC-Webhook-Gotcha, Google-Service-Account-Gotcha, Vitest-act-Gotcha 
 - Modify: 5 Notizen mit Links auf den alten Titel; `projects/fwg-warehouse-api-job.md`, `projects/fwg-notfallversand.md`, `projects/fwg-one.md`, `projects/_projects-overview.md`, `projects/ra-approvals.md`, `CLAUDE.md`, `templates/project.md`, `index.md`
 - Create (Scratch, einmalig): `enrich_hubs.py` → schreibt `repo`/`path` in alle Hubs
 
-- [ ] **Step 1: Verirrte Notiz verschieben und Frontmatter vervollständigen**
+- [x] **Step 1: Verirrte Notiz verschieben und Frontmatter vervollständigen**
 Datei nach `gotchas/` verschieben, Frontmatter um `created: '2026-08-04'`, `updated: '2026-09-03'`, `status: active`, `confidence: high`, `projects: ["[[ra-approvals]]"]`, `related: ["[[ra-approvals]]", "[[neon]]"]` ergänzen, Abschnitt „Verwandt" mit beiden Links anhängen, `mastermind/`-Ordner löschen. In `projects/ra-approvals.md` unter „Bekannte Gotchas" eine Zeile `- [gotcha] Siehe [[ra-approvals brands-Prod-Schema driftet von den Migrationen ab]] #postgres #migrations` ergänzen.
 
-- [ ] **Step 2: Dach-Hub `fwg-warehouse`**
+- [x] **Step 2: Dach-Hub `fwg-warehouse`**
 Datei umbenennen, `title: fwg-warehouse`, `permalink: mastermind/projects/fwg-warehouse`, Tags → `project, group/fwg-one, stack/aws-lambda, stack/shopify, stack/mysql, stack/nodejs`, `related` um `[[fwg-one]]`, `[[fwg-warehouse-api-order]]`, `[[fwg-warehouse-api-job]]`, `[[fwg-warehouse-app]]`, `[[fwg-warehouse-prod-document-generator]]`, `[[fwg-notfallversand]]` erweitern, Abschnitt „Repo-Hubs" mit denselben Links einfügen. Anschließend im gesamten Vault den alten Wikilink-Text durch `fwg-warehouse` ersetzen:
 
 ```bash
@@ -160,13 +160,13 @@ cd ~/Mastermind && grep -rl "fwg-warehouse (FWG Lagersystem: api-order + api-job
 ```
 In den fünf Notizen zusätzlich `projects` um den Repo-Hub ergänzen: Shopify-Order-Editing, Refund-Berechnung, DHL-Zollzeilen → `[[fwg-warehouse-api-job]]`; Vitest-act, Roter-Test → `[[fwg-notfallversand]]`. Backlink-Zeilen in beiden Repo-Hubs unter „Bekannte Gotchas". `[[fwg-warehouse]]` in `_projects-overview.md` (FWG-Abschnitt) und `fwg-one.md` eintragen.
 
-- [ ] **Step 3: Hubs mit `repo`/`path` anreichern (Skript)**
+- [x] **Step 3: Hubs mit `repo`/`path` anreichern (Skript)**
 Skript liest jede `projects/*.md`, sucht im Body nach `` `~/Desktop/…` `` bzw. `` `/Users/toni/…` ``, prüft Existenz, ermittelt `git -C <path> remote get-url origin` (normalisiert: ohne `.git`, `git@host:` → `host/`, `https://host/` → `host/`, lowercase) und fügt `repo:`/`path:` hinter `type:` ins Frontmatter ein, falls nicht vorhanden. Ausgabe: Tabelle Hub | path gefunden | repo.
 
-- [ ] **Step 4: Vault-CLAUDE.md, templates/project.md, index.md auf v2**
+- [x] **Step 4: Vault-CLAUDE.md, templates/project.md, index.md auf v2**
 CLAUDE.md: Pfad `~/Mastermind`, Ordnerregel (kein Präfix), Titelregel, Hub-Felder `repo/path/last_wrap`, Hinweis auf Hooks/`/mastermind:wrap`. Template: Felder `repo: null`, `path: null`, `last_wrap: null`, Hinweistext ohne `~/Desktop/`. index.md: Zeile „Automatik (v2, Stand 2026-09)" mit den Commands.
 
-- [ ] **Step 5: Commit und inkrementeller Reindex**
+- [x] **Step 5: Commit und inkrementeller Reindex**
 
 ```bash
 git -C ~/Mastermind add -A && git -C ~/Mastermind commit -qm "chore(v2): Hygiene, Dach-Hub fwg-warehouse, repo/path in Hubs, Konventionen v2"
@@ -186,7 +186,7 @@ grep -rL "^repo:" ~/Mastermind/projects/*.md | wc -l   # Hubs ohne repo (nur sol
 **Interfaces:**
 - Produces: `session_start.py` liest stdin-JSON (`cwd`, `source`|`how_started`), schreibt `{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"…"}}`; Env `MASTERMIND_VAULT` überschreibt `~/Mastermind`; Hub-Match via Frontmatter `repo`, `path`, Titel.
 
-- [ ] **Step 1: hooks.json**
+- [x] **Step 1: hooks.json**
 
 ```json
 {
@@ -202,10 +202,10 @@ grep -rL "^repo:" ~/Mastermind/projects/*.md | wc -l   # Hubs ohne repo (nur sol
 }
 ```
 
-- [ ] **Step 2: session-start (Wrapper) und session_start.py (Logik laut Spec §3.4)**
+- [x] **Step 2: session-start (Wrapper) und session_start.py (Logik laut Spec §3.4)**
 Wrapper: `command -v python3 >/dev/null || exit 0; exec python3 "$(dirname "$0")/session_start.py"`. Python: Funktionen `read_hook_input()`, `find_vault()`, `project_identity(cwd)`, `parse_frontmatter(text)`, `load_hubs(vault)`, `match_hub(hubs, identity)`, `recent_notes_for_hub(vault, hub_title)`, `similar_hubs(hubs, tags, exclude)`, `sniff_stack(root)`, `index_health(vault)`, `render(...)`, `main()`; jede Stufe in `try/except`, Sammel-Warnungen; Ausgabe immer JSON, Exit 0.
 
-- [ ] **Step 3: vault-commit**
+- [x] **Step 3: vault-commit**
 
 ```bash
 #!/usr/bin/env bash
@@ -218,7 +218,7 @@ git add -A >/dev/null 2>&1 && git commit -qm "auto: session end (${PROJECT})" >/
 exit 0
 ```
 
-- [ ] **Step 4: Tests der Hook-Skripte (5 Szenarien + Zeit)**
+- [x] **Step 4: Tests der Hook-Skripte (5 Szenarien + Zeit)**
 
 ```bash
 H=plugins/mastermind/hooks
@@ -242,12 +242,12 @@ Expected: gültiges JSON in allen Fällen; supportpilot zeigt Hub + ähnliche Pr
 **Interfaces:**
 - `evidence.py --session <id> --since <YYYY-MM-DD|none> [--root <repo>]` druckt Markdown: Git-Log/Status seit `since`, Auto-Memory-Dateien seit `since` (Slug = cwd mit `/`→`-`), Session-Zeitachse aus `~/.claude/projects/<slug>/<session>.jsonl` (User-Prompts gekürzt, editierte Dateien, Fehlerzeilen aus Tool-Results); fehlende Quellen werden als „nicht gefunden" gemeldet, nie als Fehler.
 
-- [ ] **Step 1: conventions.md** (Abschnitte: Notiztypen & Ordner, Frontmatter-Schema inkl. Hub-Felder, Titelregeln, Body-Struktur je Typ, Observations & Recency, Links, kanonische Stack-Tags, Dedup-Prozedur, Was-wohin-Regel, Sprache).
-- [ ] **Step 2: mastermind-brain/SKILL.md** (Recall, autonome Capture-Policy, Qualitätsschwelle, Verweis auf conventions.md, Tools, Companion-Commands).
-- [ ] **Step 3: mastermind-wrap/SKILL.md + checklist.md + evidence.py** (Ablauf Spec §3.7; Test: `python3 evidence.py --session 98f715ee-3a97-49ef-9bbb-fec396d35c4c --since 2026-09-01` aus diesem Repo liefert Zeitachse).
-- [ ] **Step 4: mastermind-project/SKILL.md** (Spec §3.8).
-- [ ] **Step 5: Commands aktualisieren, project.md löschen.**
-- [ ] **Step 6: Validierung**
+- [x] **Step 1: conventions.md** (Abschnitte: Notiztypen & Ordner, Frontmatter-Schema inkl. Hub-Felder, Titelregeln, Body-Struktur je Typ, Observations & Recency, Links, kanonische Stack-Tags, Dedup-Prozedur, Was-wohin-Regel, Sprache).
+- [x] **Step 2: mastermind-brain/SKILL.md** (Recall, autonome Capture-Policy, Qualitätsschwelle, Verweis auf conventions.md, Tools, Companion-Commands).
+- [x] **Step 3: mastermind-wrap/SKILL.md + checklist.md + evidence.py** (Ablauf Spec §3.7; Test: `python3 evidence.py --session 98f715ee-3a97-49ef-9bbb-fec396d35c4c --since 2026-09-01` aus diesem Repo liefert Zeitachse).
+- [x] **Step 4: mastermind-project/SKILL.md** (Spec §3.8).
+- [x] **Step 5: Commands aktualisieren, project.md löschen.**
+- [x] **Step 6: Validierung**
 
 ```bash
 claude plugin validate plugins/mastermind --strict && claude plugin validate plugins/mastermind/skills --strict && claude plugin validate plugins/mastermind/commands --strict
@@ -255,15 +255,15 @@ claude plugin validate plugins/mastermind --strict && claude plugin validate plu
 
 ### Task 7: Manifest, README, masterflow-CLAUDE.md
 
-- [ ] **Step 1:** `plugin.json` → `version: 0.2.0`, Beschreibung erwähnt Hooks/Wrap. `marketplace.json` → mastermind `0.2.0`.
-- [ ] **Step 2:** `plugins/mastermind/README.md` (Voraussetzungen inkl. Vault-Pfad, `MASTERMIND_VAULT`, python3; Hooks; Skills/Commands; Update-Ablauf; Modellwechsel-Hinweis).
-- [ ] **Step 3:** `.claude/CLAUDE.md` Abschnitt „Architektur: mastermind" auf v2 (Pfad, Hooks, Skills, conventions.md, Zählung der Komponenten, Test-Befehle für Hook-Skripte).
-- [ ] **Step 4:** `claude plugin validate . --strict && claude plugin validate .claude-plugin/plugin.json --strict`; Commit.
+- [x] **Step 1:** `plugin.json` → `version: 0.2.0`, Beschreibung erwähnt Hooks/Wrap. `marketplace.json` → mastermind `0.2.0`.
+- [x] **Step 2:** `plugins/mastermind/README.md` (Voraussetzungen inkl. Vault-Pfad, `MASTERMIND_VAULT`, python3; Hooks; Skills/Commands; Update-Ablauf; Modellwechsel-Hinweis).
+- [x] **Step 3:** `.claude/CLAUDE.md` Abschnitt „Architektur: mastermind" auf v2 (Pfad, Hooks, Skills, conventions.md, Zählung der Komponenten, Test-Befehle für Hook-Skripte).
+- [x] **Step 4:** `claude plugin validate . --strict && claude plugin validate .claude-plugin/plugin.json --strict`; Commit.
 
 ### Task 8: End-to-End-Test mit lokalem Plugin
 
-- [ ] **Step 1:** `cd ~/Desktop/supportpilot && claude --plugin-dir /Users/toni/Desktop/masterflow/plugins/mastermind -p "Gib den Inhalt des <mastermind>-Kontextblocks wörtlich zurück, sonst nichts." --max-turns 1` → Kontextblock erscheint mit Hub `supportpilot`.
-- [ ] **Step 2:** `claude --plugin-dir … -p "/mastermind:wrap dry" --max-turns 6` in `~/Desktop/supportpilot` → Report ohne Schreibzugriffe, Vault-Git bleibt sauber.
+- [x] **Step 1:** `cd ~/Desktop/supportpilot && claude --plugin-dir /Users/toni/Desktop/masterflow/plugins/mastermind -p "Gib den Inhalt des <mastermind>-Kontextblocks wörtlich zurück, sonst nichts." --max-turns 1` → Kontextblock erscheint mit Hub `supportpilot`.
+- [x] **Step 2:** `claude --plugin-dir … -p "/mastermind:wrap dry" --max-turns 6` in `~/Desktop/supportpilot` → Report ohne Schreibzugriffe, Vault-Git bleibt sauber.
 
 ### Task 9: Deployment
 
