@@ -361,7 +361,8 @@ def index_health(vault):
     files = 0
     for dirpath, dirnames, filenames in os.walk(vault):
         dirnames[:] = [d for d in dirnames if not d.startswith(".")]
-        files += sum(1 for f in filenames if f.endswith(".md") and not f.startswith("."))
+        # basic-memory indexes Markdown notes and Obsidian canvas files
+        files += sum(1 for f in filenames if f.endswith((".md", ".canvas")) and not f.startswith("."))
     cfg_dir = Path(os.environ.get("BASIC_MEMORY_CONFIG_DIR") or "~/.basic-memory").expanduser()
     indexed = None
     try:
