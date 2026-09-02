@@ -9,7 +9,7 @@ Ein Claude-Code-**Plugin-Marketplace** (`.claude-plugin/marketplace.json`) mit z
 | Plugin | Quelle laut `marketplace.json` | Inhalt |
 |---|---|---|
 | `masterflow` | `./` (Repo-Root) | Skills `/masterflow:init`, `/masterflow:audit`, `/masterflow:apply` und `references/` |
-| `mastermind` | `./plugins/mastermind` | MCP-Server `mastermind-memory` (basic-memory), Hooks (SessionStart-Kontext, SessionEnd-Commit), Skills `mastermind-brain`, `mastermind-wrap`, `mastermind-project`, fünf `/mastermind:*`-Commands |
+| `mastermind` | `./plugins/mastermind` | MCP-Server `mastermind-memory` (basic-memory), Hooks (SessionStart-Kontext, UserPromptSubmit-Hinweise, SessionEnd-Commit/Push/State), Skills `mastermind-brain`, `mastermind-wrap`, `mastermind-project`, `mastermind-index` (mit `lint.py`, `repair_index.py`), vier `/mastermind:*`-Commands |
 
 Weil die Quelle von `masterflow` das Repo-Root ist, wird **alles** im Root (auch `plugins/`, README, LICENSE und `.claude/`) mit dem masterflow-Plugin ausgeliefert. Für Plugin-Nutzer ist das inert: Claude Code lädt eine CLAUDE.md aus Plugin-Verzeichnissen nie, Plugins liefern Kontext ausschließlich über Skills (siehe code.claude.com/docs/en/plugins-reference).
 
