@@ -30,11 +30,14 @@ Never ask questions; decide from the sources below and report.
 - Match found → **update mode**: keep the note, use `edit_note` to add missing frontmatter (`repo`, `path`,
   `group/*`, `stack/*` tags; a missing key is added with `find_replace` on `type: project` →
   `type: project\n<key>: <value>`), refresh `## Stack`, `## Status`, `## Offene Punkte`, and add links.
-  No match → **create mode**.
+  Add every anatomy-v3 section the hub lacks (`## Konventionen`, `## Offene Punkte`, `## Quellen` before
+  `## Verwandt`, `## Verlauf` as the last section); never reword existing sections and never edit
+  existing `## Verlauf` lines. No match → **create mode**.
 
 ## 3. Sources (read what exists, do not guess)
 
-- `CLAUDE.md`, `.claude/CLAUDE.md`, `README.md`, `context/stack-analysis.md`, `docs/` index files.
+- `CLAUDE.md`, `.claude/CLAUDE.md`, `AGENTS.md`, `README.md`, `context/stack-analysis.md`, `docs/` index files.
+  Keep a list of every source you actually read; it becomes `## Quellen`.
 - Manifests: `package.json` (dependencies + scripts), `pyproject.toml` / `requirements.txt`, `composer.json`,
   `go.mod`, `*.csproj`, `pubspec.yaml`; infra: `vercel.json`, `serverless.yml`, `Dockerfile`,
   `.github/workflows/*`.
@@ -75,21 +78,35 @@ path: <absolute root path>
 
 Do not write `last_wrap` (the wrap skill sets it) and never write `null` values; omit unknown keys.
 
-Sections (German): `## Zweck` (2–4 sentences), `## Stack` (bullets with versions), `## Architektur / Eigenheiten`,
-`## Konventionen` (build/test/deploy commands, log formats, branch model), `## Wichtige Decisions` (`- [decision] …`),
-`## Bekannte Gotchas` (`- [gotcha] Siehe [[…]] #tag`), `## Status` (`Stand YYYY-MM-DD: …`), `## Offene Punkte`,
-`## Verwandt` (index, overview, umbrella, similar projects, stack notes).
+Sections (German, anatomy v3, exactly this order): `## Zweck` (2–4 sentences), `## Stack` (bullets with versions),
+`## Architektur / Eigenheiten`, `## Konventionen` (build/test/deploy commands, log formats, branch model),
+`## Wichtige Decisions` (`- [decision] …`), `## Bekannte Gotchas` (`- [gotcha] Siehe [[…]] #tag`),
+`## Status` (exactly one line `Stand YYYY-MM-DD: …`), `## Offene Punkte` (unknowns, risks, unconfirmed
+assumptions a later session must know; ≤ 8 bullets; no to-dos), `## Quellen` (one line per source read in
+section 3: `- <Quelle> (geerntet bis YYYY-MM-DD)` with today's date, e.g. `- CLAUDE.md, README.md, package.json (geerntet bis 2026-09-03)`,
+`- Auto-Memory ~/.claude/projects/<slug>/memory (geerntet bis 2026-09-03)`), `## Verwandt` (index, overview,
+umbrella, similar projects, stack notes), and last `## Verlauf` with its first line
+`- YYYY-MM-DD project · Hub angelegt · Quelle: /mastermind:project` (update mode: `edit_note` `append`
+`- YYYY-MM-DD project · Hub aktualisiert: <was> · Quelle: /mastermind:project`; existing lines stay untouched).
 
 Then register it in `_projects-overview` (`edit_note`): append the wikilink to the section of its group
 (`## FWG.ONE …`, `## RocketAds …`, `## Standalone …`; counts in those headings are informational, do not
 maintain them). If the group has no section yet (e.g. `moeller`), add `## Moeller` before `## Standalone`.
 Add a backlink in the umbrella hub if one exists.
 
-## 6. Commit and report
+## 6. Lint, commit and report
+
+```bash
+VAULT="${MASTERMIND_VAULT:-$HOME/Mastermind}"; python3 "${CLAUDE_SKILL_DIR}/../mastermind-index/lint.py" --vault "$VAULT" --changed --strict
+```
+
+Fix every ERROR (structure via `edit_note` `replace_section`/`append`, frontmatter via `find_replace`),
+run the lint again, then commit:
 
 ```bash
 VAULT="${MASTERMIND_VAULT:-$HOME/Mastermind}"; cd "$VAULT" && git add -A && git commit -qm "project(<name>): hub created|updated" && git log --oneline -1
 ```
 
-Report in German: hub path, mode (neu/aktualisiert), stack tags, linked similar projects and stack notes,
-and anything you could not determine (e.g. no remote). No questions.
+Report in German: hub path, mode (neu/aktualisiert), stack tags, sources listed in `## Quellen`, linked
+similar projects and stack notes, the lint result, and anything you could not determine (e.g. no remote).
+No questions.
