@@ -105,3 +105,35 @@ geschlossenen Terminal fällt der Dienst auf ~200 MB.
 - `repair_index.py`: erkennt „geteilter Dienst", Reparatur der doppelten Entity-Zeile erfolgreich —
   Entities 237, FTS 100 %, Observations 738/738, Relations 1083/1083, 0 Duplikate.
 - Nach dem Abräumen der alten stdio-Server: Swap von 13,2 GB auf 3,7 GB.
+
+## Nachtrag: der Watchdog zählte keine Sessions (0.4.1, `7c758da`)
+
+Die erste Fassung zählte offene Sessions mit `pgrep -x claude` und bekam **null** zurück, während eine
+Session lief — die als Sicherung gedachte Bedingung war wirkungslos, der Watchdog hätte unter einem
+lebenden Client neu gestartet. `ps` zeigt denselben Prozess korrekt:
+
+```
+$ pgrep -x claude                     # leer
+$ ps -Ao comm= | grep -cx claude      # 1
+$ pgrep -f basic-memory               # 1   <- pgrep arbeitet grundsätzlich
+```
+
+Betroffen war reproduzierbar der `claude`-Prozess selbst (direkter Vorfahre der Shell), nicht dessen
+Kinder; der Unterschied liegt zwischen `sysctl KERN_PROC` (pgrep) und libproc (ps). Der Watchdog zählt
+jetzt über `ps` und behandelt eine unlesbare Prozessliste als „Sessions offen", nicht als „keine".
+Festgehalten als [[pgrep findet Prozesse nicht, die ps im Bash-Tool von Claude Code zeigt]].
+
+## Endstand 2026-09-12
+
+| | vorher | nachher |
+|---|---|---|
+| MCP-Prozesse | einer je Session (5) | einer insgesamt |
+| Speicher dafür | ~15 GB | 352 MB (idle ~200 MB) |
+| Swap belegt | 13,2 von 14,3 GB | 3,4 von 5,1 GB |
+| Watcher | 5 | 1 |
+| Index | 1 doppelte Entity-Zeile | 239 Entities, 0 Duplikate, FTS 100 % |
+
+Verifiziert: `install.py --status` (Handshake ok), Hook-Warnung bei gestopptem Dienst, Watchdog in beiden
+Kontexten (direkt und über launchd), Schutzbedingung bei künstlich gesenkter Schwelle (Dienst blieb
+stehen), Neustart über `bootout`/`bootstrap`, und ein echter End-to-End-Lauf: `claude -p` mit
+`recent_activity` gegen den geteilten Server lieferte 10 Treffer.
