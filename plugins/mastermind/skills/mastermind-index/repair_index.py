@@ -6,7 +6,8 @@ drops the observation/relation rows; only the file watcher of a running `basic-m
 a note completely (content stems, observations, relations, vector chunks). Concurrent watchers can also
 leave duplicate rows. This script therefore:
 
-  1. requires a running `basic-memory mcp` process (any Claude Code session with the plugin), refuses to
+  1. requires a running `basic-memory mcp` process (the shared launchd service
+     com.mastermind.basic-memory, or a session still on the stdio transport), refuses to
      run with more than 2 of them unless --force (they compete for the SQLite lock);
   2. backs up memory.db to <config dir>/backups/repair/memory-<timestamp>.db (keeps the 5 newest there);
   3. finds every note whose rows are incomplete (no content stems, duplicate entity rows, fewer
@@ -22,6 +23,7 @@ Standard library only; always exits 0. Usage:
 import argparse
 import datetime as dt
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -35,11 +37,27 @@ KEEP_BACKUPS = 5
 
 
 def watcher_pids():
+    """PIDs of running basic-memory MCP servers — the shared service and any stdio leftovers.
+
+    Both transports run the same file watcher, so both count towards the concurrency
+    check below. With the shared launchd service this is normally exactly one.
+    """
     try:
         r = subprocess.run(["pgrep", "-f", "basic-memory mcp"], capture_output=True, text=True, timeout=5)
         return [int(x) for x in r.stdout.split() if x.strip().isdigit() and int(x) != os.getpid()]
     except Exception:
         return []
+
+
+def shared_service_pid():
+    """PID of the launchd-managed shared server, or None."""
+    try:
+        r = subprocess.run(["launchctl", "print", f"gui/{os.getuid()}/com.mastermind.basic-memory"],
+                           capture_output=True, text=True, timeout=10)
+        m = re.search(r"^\s*pid\s*=\s*(\d+)", r.stdout, re.MULTILINE)
+        return int(m.group(1)) if m else None
+    except Exception:
+        return None
 
 
 def vault_files(vault):
@@ -150,13 +168,18 @@ def main():
 
     pids = watcher_pids()
     if not pids:
-        print("kein laufender MCP-Watcher (basic-memory mcp): Reparatur braucht eine offene Claude-Code-Session mit dem Plugin.")
+        print("kein laufender MCP-Watcher (basic-memory mcp). Geteilten Dienst starten:\n"
+              "  launchctl kickstart -k gui/$UID/com.mastermind.basic-memory\n"
+              "(oder eine Claude-Code-Session mit stdio-MCP öffnen).")
         return
     if len(pids) > 2 and not a.force:
         print(f"{len(pids)} basic-memory-mcp-Prozesse laufen (PIDs {', '.join(map(str, pids))}); konkurrierende Watcher sperren die "
-              "Index-DB und erzeugen doppelte Zeilen. Andere Claude-Sessions schließen, dann erneut starten (oder --force).")
+              "Index-DB und erzeugen doppelte Zeilen. Mit dem geteilten Dienst läuft normalerweise genau einer: "
+              "Sessions auf stdio-MCP schließen, dann erneut starten (oder --force).")
         return
-    print(f"Watcher: {len(pids)} basic-memory-mcp-Prozess(e)", flush=True)
+    shared = shared_service_pid()
+    kind = "geteilter Dienst" if shared in pids else "stdio"
+    print(f"Watcher: {len(pids)} basic-memory-mcp-Prozess(e) ({kind})", flush=True)
 
     cfg_dir = Path(os.environ.get("BASIC_MEMORY_CONFIG_DIR") or "~/.basic-memory").expanduser()
     db = cfg_dir / "memory.db"

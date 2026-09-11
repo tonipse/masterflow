@@ -1,9 +1,8 @@
 {
   "mcpServers": {
     "mastermind-memory": {
-      "command": "basic-memory",
-      "args": ["mcp"],
-      "env": { "BASIC_MEMORY_MCP_PROJECT": "mastermind" }
+      "type": "http",
+      "url": "http://127.0.0.1:8765/mcp"
     }
   }
 }

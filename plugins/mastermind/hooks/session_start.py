@@ -16,6 +16,7 @@ import datetime as dt
 import json
 import os
 import re
+import socket
 import sqlite3
 import subprocess
 import sys
@@ -30,7 +31,10 @@ NOTE_DIRS = ("gotchas", "patterns", "decisions", "howtos", "stacks")
 UNWRAPPED_MIN_EDITS = 5
 UNWRAPPED_MAX_AGE_DAYS = 14
 UNWRAPPED_MAX_NOTIFY = 3
-OLLAMA_TIMEOUT = 0.3
+# 0.3 s produced false 'not reachable' warnings while Ollama was paged out; a live
+# endpoint answers in a few ms, so a longer cap costs nothing in the normal case.
+OLLAMA_TIMEOUT = 1.5
+SERVER_TIMEOUT = 1.0
 
 # dependency name -> canonical stack tag (matches the stack/* tags used in the vault)
 DEP_TAGS = {
@@ -388,6 +392,32 @@ def ollama_warning(cfg):
     return f"Ollama not reachable at {base}; semantic search will fail (brew services start ollama)"
 
 
+def server_warning():
+    """Warn when the plugin points at the shared HTTP server but nothing listens there.
+
+    Reads the plugin's own .mcp.json, so switching back to the per-session stdio form
+    silently disables this check instead of warning about a server that is not used.
+    """
+    try:
+        cfg = json.loads((Path(__file__).resolve().parent.parent / ".mcp.json").read_text())
+        srv = (cfg.get("mcpServers") or {}).get("mastermind-memory") or {}
+        if srv.get("type") not in ("http", "sse"):
+            return None
+        m = re.match(r"https?://([^:/]+):(\d+)", str(srv.get("url") or ""))
+        if not m:
+            return None
+        host, port = m.group(1), int(m.group(2))
+    except Exception:
+        return None
+    try:
+        socket.create_connection((host, port), timeout=SERVER_TIMEOUT).close()
+        return None
+    except OSError:
+        return ("Mastermind memory server not reachable at "
+                f"{srv.get('url')}; memory tools will fail "
+                "(launchctl kickstart -k gui/$UID/com.mastermind.basic-memory)")
+
+
 def open_points(body):
     """Lines of '## Status' (bullets or the single 'Stand …' line) and '## Offene Punkte'."""
     lines, current = [], None
@@ -492,9 +522,9 @@ def index_health(vault):
             con.close()
         except Exception:
             stats = None
-    w = ollama_warning(cfg)
-    if w:
-        warnings.append(w)
+    for w in (server_warning(), ollama_warning(cfg)):
+        if w:
+            warnings.append(w)
     return files, stats, warnings
 
 
