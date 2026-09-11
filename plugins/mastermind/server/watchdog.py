@@ -79,10 +79,27 @@ def footprint_mb(pid: int) -> int | None:
     return int(value * {"K": 1 / 1024, "M": 1, "G": 1024}[unit])
 
 
-def claude_sessions() -> int:
-    """Count running Claude Code CLI processes (the only clients of this server)."""
-    out = run(["pgrep", "-x", "claude"])
-    return len([x for x in out.split() if x.strip().isdigit()])
+def claude_sessions() -> int | None:
+    """Count running Claude Code CLI processes (the only clients of this server).
+
+    Uses `ps`, not `pgrep`: inside Claude Code's own Bash sandbox `pgrep -x claude`
+    returns nothing for a claude process that is a direct ancestor and that `ps`
+    lists fine (verified 2026-09-12). Returns None when the process list cannot be
+    read at all — the caller then leaves the service alone rather than guessing.
+    """
+    out = run(["ps", "-Ao", "comm=,command="])
+    if not out.strip():
+        return None
+    n = 0
+    for line in out.splitlines():
+        parts = line.split(None, 1)
+        if not parts:
+            continue
+        if parts[0].rsplit("/", 1)[-1] == "claude":
+            n += 1
+        elif len(parts) > 1 and re.search(r"(^|/)claude(\s|$)", parts[1]):
+            n += 1
+    return n
 
 
 def main() -> int:
@@ -99,6 +116,9 @@ def main() -> int:
     sessions = claude_sessions()
     if mb < THRESHOLD_MB:
         note(f"pid {pid}: {mb} MB < {THRESHOLD_MB} MB threshold, {sessions} session(s); ok")
+        return 0
+    if sessions is None:
+        note(f"pid {pid}: {mb} MB but process list unreadable; leaving it alone")
         return 0
     if sessions:
         note(f"pid {pid}: {mb} MB but {sessions} Claude session(s) open; keeping it warm")
