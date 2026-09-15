@@ -42,11 +42,20 @@ def watcher_pids():
     Both transports run the same file watcher, so both count towards the concurrency
     check below. With the shared launchd service this is normally exactly one.
     """
-    try:
-        r = subprocess.run(["pgrep", "-f", "basic-memory mcp"], capture_output=True, text=True, timeout=5)
-        return [int(x) for x in r.stdout.split() if x.strip().isdigit() and int(x) != os.getpid()]
-    except Exception:
-        return []
+    pids = set()
+    # Since 0.5.0 the shared service runs as `<venv python> .../bin/server.py mcp ...`,
+    # stdio leftovers still show up as `basic-memory mcp`.
+    for pattern in ("basic-memory mcp", "server.py mcp"):
+        try:
+            r = subprocess.run(["pgrep", "-f", pattern], capture_output=True, text=True, timeout=5)
+            pids.update(int(x) for x in r.stdout.split() if x.strip().isdigit())
+        except Exception:
+            pass
+    shared = shared_service_pid()
+    if shared:
+        pids.add(shared)
+    pids.discard(os.getpid())
+    return sorted(pids)
 
 
 def shared_service_pid():

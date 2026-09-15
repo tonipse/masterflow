@@ -2,16 +2,21 @@
 """Install the shared basic-memory MCP server as a launchd service.
 
 Why a shared server at all: Claude Code starts one stdio MCP server per session, and
-basic-memory loads the fastembed cross-encoder into that process — 1.3 GB after model
-init, 6.0 GB after a few searches (measured 2026-09-12, basic-memory 0.23.2). Five open
-sessions meant ~25 GB and a swapping machine. One shared HTTP server loads the model
-once and, just as important, runs exactly ONE file watcher: concurrent watchers are what
-produce duplicate FTS rows and `database is locked`.
+basic-memory loads the fastembed cross-encoder into that process — several GB per session
+once it has reranked a few searches (measured 2026-09-12, basic-memory 0.23.2). One shared
+HTTP server loads the model once and runs exactly ONE file watcher: concurrent watchers are
+what produce duplicate FTS rows and `database is locked`.
+
+Since 0.5.0 the service is started through `server.py`, which keeps the process flat
+(ONNX arena off, serialised reranks, idle unload — see its docstring), and it runs in
+FastMCP's stateless HTTP mode (`FASTMCP_STATELESS_HTTP=true`): no session ids, so a restart
+of the service is invisible to open Claude Code sessions.
 
 Runtime files deliberately live outside the plugin cache (`~/.claude/plugins/cache/...`),
 because that path carries the plugin version and changes on every update, which would
 break the launchd job. Everything installs to:
 
+    ~/.local/share/mastermind/bin/server.py
     ~/.local/share/mastermind/bin/watchdog.py
     ~/Library/LaunchAgents/com.mastermind.basic-memory.plist
     ~/Library/LaunchAgents/com.mastermind.basic-memory-watchdog.plist
@@ -25,6 +30,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import plistlib
@@ -51,6 +57,7 @@ BIN = SHARE / "bin"
 STATE = HOME / ".local/state/mastermind"
 AGENTS = HOME / "Library/LaunchAgents"
 SERVER_LOG = STATE / "server.log"
+RUNTIME_FILES = ("server.py", "watchdog.py")
 
 HERE = Path(__file__).resolve().parent
 
@@ -79,6 +86,24 @@ def find_basic_memory() -> Path:
     return path.resolve()
 
 
+def venv_python(exe: Path) -> Path:
+    """The interpreter of basic-memory's own venv; server.py must run inside it.
+
+    Deliberately NOT resolved: `bin/python` in a venv is a symlink to the base interpreter,
+    and the resolved path would start that base interpreter without the venv's packages
+    (first install attempt 2026-09-16 ended up on /opt/anaconda3/bin/python3.12).
+    """
+    for name in ("python", "python3"):
+        candidate = exe.parent / name
+        if not candidate.exists():
+            continue
+        r = run([str(candidate), "-c", "import basic_memory, fastembed"], timeout=60)
+        if r.returncode == 0:
+            return candidate
+        sys.exit(f"{candidate} cannot import basic_memory/fastembed:\n  {r.stderr.strip()[-300:]}")
+    sys.exit(f"no python interpreter next to {exe}; is basic-memory installed as a uv tool?")
+
+
 def port_owner() -> str | None:
     """Who listens on PORT, if anyone."""
     r = run(["lsof", "-nP", f"-iTCP:{PORT}", "-sTCP:LISTEN"], timeout=10)
@@ -86,17 +111,18 @@ def port_owner() -> str | None:
     return lines[0] if lines else None
 
 
-def server_plist(exe: Path) -> dict:
+def server_plist(py: Path) -> dict:
     return {
         "Label": LABEL,
         "ProgramArguments": [
-            str(exe), "mcp",
+            str(py), str(BIN / "server.py"), "mcp",
             "--transport", "streamable-http",
             "--host", HOST,
             "--port", str(PORT),
         ],
         "EnvironmentVariables": {
             "BASIC_MEMORY_MCP_PROJECT": PROJECT,
+            "FASTMCP_STATELESS_HTTP": "true",
             "HOME": str(HOME),
             "PATH": f"{HOME}/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
         },
@@ -113,7 +139,7 @@ def watchdog_plist() -> dict:
     return {
         "Label": WATCHDOG_LABEL,
         "ProgramArguments": [sys.executable, str(BIN / "watchdog.py")],
-        "EnvironmentVariables": {"HOME": str(HOME)},
+        "EnvironmentVariables": {"HOME": str(HOME), "MASTERMIND_PORT": str(PORT)},
         "RunAtLoad": False,
         "StartInterval": WATCHDOG_INTERVAL,
         "StandardOutPath": str(STATE / "watchdog.log"),
@@ -134,20 +160,38 @@ def bootout(label: str) -> None:
     run(["launchctl", "bootout", gui(label)])
 
 
+def loaded(label: str) -> bool:
+    return run(["launchctl", "print", gui(label)], timeout=10).returncode == 0
+
+
 def bootstrap(path: Path, label: str) -> None:
-    """(Re)load a job. bootout first so an edited plist actually takes effect."""
+    """(Re)load a job. bootout first so an edited plist actually takes effect.
+
+    bootout returns before the old process is gone — uvicorn waits for open client
+    connections on shutdown — and bootstrap answers EIO while the label still exists.
+    So wait for the old job to disappear, then retry a few times.
+    """
     bootout(label)
-    r = run(["launchctl", "bootstrap", f"gui/{os.getuid()}", str(path)])
-    if r.returncode != 0:
-        # 'bootstrap' fails on some macOS versions when the service is still settling.
-        run(["launchctl", "enable", gui(label)])
+    deadline = time.time() + 45
+    while loaded(label) and time.time() < deadline:
+        time.sleep(1)
+    run(["launchctl", "enable", gui(label)])
+    err = ""
+    for _ in range(6):
         r = run(["launchctl", "bootstrap", f"gui/{os.getuid()}", str(path)])
-        if r.returncode != 0:
-            print(f"  launchctl bootstrap {label}: {r.stderr.strip() or r.returncode}")
+        if r.returncode == 0 or loaded(label):
+            return
+        err = r.stderr.strip() or str(r.returncode)
+        time.sleep(2)
+    print(f"  launchctl bootstrap {label}: {err}")
 
 
 def health(timeout: float = 60.0) -> tuple[bool, str]:
-    """Do a real MCP initialize handshake against the running server."""
+    """Do a real MCP initialize handshake against the running server.
+
+    Also reports the session mode: a stateless server returns no Mcp-Session-Id, which
+    is what makes service restarts harmless for open Claude Code sessions.
+    """
     body = json.dumps({
         "jsonrpc": "2.0", "id": 1, "method": "initialize",
         "params": {
@@ -165,13 +209,16 @@ def health(timeout: float = 60.0) -> tuple[bool, str]:
         try:
             with urllib.request.urlopen(req, timeout=10) as r:
                 payload = r.read().decode("utf-8", "replace")
+                session = r.headers.get("Mcp-Session-Id")
             if '"serverInfo"' in payload:
                 version = ""
                 for token in payload.split('"version":"')[1:]:
                     version = token.split('"')[0]
-                return True, f"MCP handshake ok (Basic Memory {version})"
+                mode = "stateless" if not session else "stateful — sessions break on restart"
+                return True, f"MCP handshake ok (Basic Memory {version}, {mode})"
             last = payload[:120]
-        except (urllib.error.URLError, OSError) as exc:
+        except (urllib.error.URLError, OSError, http.client.HTTPException) as exc:
+            # HTTPException covers IncompleteRead from a server that is just shutting down.
             last = str(exc)
         time.sleep(1.5)
     return False, last
@@ -189,8 +236,18 @@ def stdio_servers() -> list[str]:
     return out
 
 
+def server_notes(n: int = 3) -> list[str]:
+    """Last lines server.py wrote (patch state, reranker loads/unloads)."""
+    try:
+        lines = SERVER_LOG.read_text(errors="replace").splitlines()
+    except OSError:
+        return []
+    return [l.strip() for l in lines if l.startswith("[mastermind-server]")][-n:]
+
+
 def cmd_install() -> int:
     exe = find_basic_memory()
+    py = venv_python(exe)
     for d in (BIN, STATE, AGENTS):
         d.mkdir(parents=True, exist_ok=True)
 
@@ -198,12 +255,13 @@ def cmd_install() -> int:
     if owner and LABEL not in owner and "basic-memory" not in owner and "python" not in owner:
         sys.exit(f"port {PORT} is taken by another process:\n  {owner}\nFree it or change PORT.")
 
-    shutil.copy2(HERE / "watchdog.py", BIN / "watchdog.py")
-    (BIN / "watchdog.py").chmod(0o755)
-    print(f"installed {BIN / 'watchdog.py'}")
+    for name in RUNTIME_FILES:
+        shutil.copy2(HERE / name, BIN / name)
+        (BIN / name).chmod(0o755)
+        print(f"installed {BIN / name}")
 
     sp, wp = AGENTS / f"{LABEL}.plist", AGENTS / f"{WATCHDOG_LABEL}.plist"
-    write_plist(sp, server_plist(exe))
+    write_plist(sp, server_plist(py))
     write_plist(wp, watchdog_plist())
     print(f"installed {sp}\ninstalled {wp}")
 
@@ -213,6 +271,8 @@ def cmd_install() -> int:
 
     ok, msg = health()
     print(f"health: {msg}")
+    for line in server_notes(1):
+        print(f"  {line}")
     if not ok:
         print(f"  see {SERVER_LOG}")
         return 1
@@ -250,6 +310,8 @@ def cmd_status() -> int:
     print(f"{WATCHDOG_LABEL}: {'loaded' if w.returncode == 0 else 'not loaded'}")
     ok, msg = health(timeout=15)
     print(f"health: {msg}")
+    for line in server_notes():
+        print(f"  {line}")
     left = stdio_servers()
     if left:
         print(f"stdio servers still running: {', '.join(left)}")
@@ -263,9 +325,10 @@ def cmd_uninstall() -> int:
         if p.exists():
             p.unlink()
         print(f"removed {label}")
-    wd = BIN / "watchdog.py"
-    if wd.exists():
-        wd.unlink()
+    for name in RUNTIME_FILES:
+        f = BIN / name
+        if f.exists():
+            f.unlink()
     print("\nRevert plugins/mastermind/.mcp.json to the stdio form to get per-session servers back:")
     print('  {"mcpServers": {"mastermind-memory": {"command": "basic-memory", "args": ["mcp"],')
     print('   "env": {"BASIC_MEMORY_MCP_PROJECT": "mastermind"}}}}')
